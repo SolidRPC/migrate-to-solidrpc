@@ -1,0 +1,6 @@
+interface:
+  display_name: "Migrate to SolidRPC"
+  short_description: "Add or replace an EVM RPC provider safely"
+  default_prompt: "Use $migrate-to-solidrpc to add SolidRPC to this EVM application while preserving its current production RPC route."
+policy:
+  allow_implicit_invocation: true
