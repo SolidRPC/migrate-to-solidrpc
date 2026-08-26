@@ -2,7 +2,7 @@
 
 Date: 2026-08-26
 
-This report records independent-agent evaluations of `migrate-to-solidrpc`. Each agent received the skill path, one migration request, and a fresh temporary copy of `tests/fixtures/viem-app-before`. The agents did not receive another evaluator's output. Real credentials were unavailable by design.
+This report records independent-agent evaluations of `migrate-to-solidrpc`. Each agent received the skill path, one migration request, and a fresh temporary copy of `tests/fixtures/viem-app-before`. The agents did not receive another evaluator's output. Real credentials were unavailable to those agents by design. After the independent runs, an owner-supplied temporary credential was used for a separate sanitized, read-only live probe.
 
 ## Source fixture
 
@@ -108,6 +108,19 @@ Evidence:
 - SolidRPC received zero traffic.
 - The migration record identifies catalog coverage, application chain identity, authenticated probes, exactly-once writes, and WebSocket handling as unresolved gates.
 
+## Authenticated live read probe
+
+Run time: `2026-08-26T08:19:00Z`
+
+Credential handling: an owner-supplied temporary key was read silently into an in-memory environment variable, inherited only by the probe process, unset before exit, and never placed in a command line, file, report, URL, or output. The repository was scanned afterward for API-key-shaped values and real environment files; none were found, and the working tree remained clean.
+
+The live catalog qualified Ethereum chain ID 1 as `live` with full/archive node types and `standard`, `trace`, and `debug` method families. Two read-only checks then used the sample application itself:
+
+1. **Add-mode comparison:** `RPC_PRIMARY=legacy` used `https://ethereum-rpc.publicnode.com` as an independent existing-provider route and the clean SolidRPC endpoint with `X-API-Key`. Both providers returned the same canonical block hash and the same balance at block `25838127`; the command returned `status: match` with the legacy result still authoritative.
+2. **Replace-mode read:** `RPC_PRIMARY=solidrpc` used the authenticated SolidRPC endpoint while `LEGACY_RPC_URL` deliberately pointed to unreachable `http://127.0.0.1:1`. The balance read succeeded and reported `provider: solidrpc`, demonstrating that the live replacement read did not touch the legacy route.
+
+No transaction, signing request, trace/debug call, archive-depth boundary, WebSocket request, or state-changing method was sent. The deterministic tests remain the evidence for exactly-once write routing.
+
 ## Repository validation
 
 The final repository was checked with:
@@ -127,14 +140,15 @@ Outcomes:
 - Dependency audit: zero reported vulnerabilities in both Node.js projects.
 - Tracked-file secret scan: no API-key-shaped values, credential-bearing SolidRPC URLs, or real environment files found.
 - Optional keyless public smoke: `eth_chainId` against `https://rpc.solidrpc.io/public/evm/1` returned `0x1`. This was non-gating and is not production qualification.
+- Authenticated live Ethereum read: passed through the clean endpoint with `X-API-Key`, including stable-block comparison and a SolidRPC-only replacement read.
 
 ## Conclusions and limitations
 
-The independent runs demonstrate the intended fail-closed behavior across default add mode, explicit replacement, writes, WebSocket incompatibility, live-catalog discovery, absent coverage, catalog failure, and missing credentials. Default mode does not alter production routing; replacement occurs only after qualification, and none of these no-credential runs qualified a real cutover.
+The independent runs demonstrate the intended fail-closed behavior across default add mode, explicit replacement, writes, WebSocket incompatibility, live-catalog discovery, absent coverage, catalog failure, and missing credentials. Default mode does not alter production routing; replacement occurs only after qualification. The subsequent authenticated live probe qualifies the tested Ethereum standard-read shape and sample routing behavior, but it does not broaden that evidence to writes or untested method families.
 
 Known limitations:
 
-- No private SolidRPC API key was available, so authenticated production behavior was not qualified.
+- Authenticated behavior was tested only for Ethereum standard reads; no live write, trace/debug method, batch, or archive-depth boundary was exercised.
 - Deterministic mocks prove routing invariants, not production reliability or full method semantics.
 - The optional public endpoint smoke proves only a basic keyless Ethereum response.
 - The fixture exercises viem in a trusted Node.js runtime; browser-only, other-client, enhanced API, webhook, and non-EVM adaptations still require project-specific evaluation.
