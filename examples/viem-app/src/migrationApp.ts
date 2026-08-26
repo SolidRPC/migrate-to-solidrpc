@@ -6,8 +6,9 @@ import {
   type Hex,
   type PublicClient,
 } from 'viem'
+import { resolveSolidRpcAuthentication } from './authentication'
 import { qualifyCatalogCoverage } from './catalog'
-import { requireSolidRpcApiKey } from './config'
+import { qualifyLiveCapacity } from './capacity'
 import {
   createQualificationEvidence,
   readValidQualificationEvidence,
@@ -68,6 +69,7 @@ export class MigrationApp {
       this.#config,
       this.#dependencies,
     )
+    const capacity = await qualifyLiveCapacity(this.#config, this.#dependencies)
     const comparison = await this.#compareBalanceAfterCatalog(address)
     if (comparison.status !== 'match') {
       throw new Error(
@@ -79,6 +81,7 @@ export class MigrationApp {
       this.#config,
       address,
       catalog,
+      capacity,
       comparison,
       this.#dependencies,
     )
@@ -89,7 +92,6 @@ export class MigrationApp {
   async #compareBalanceAfterCatalog(
     address: Address,
   ): Promise<BalanceComparison> {
-    requireSolidRpcApiKey(this.#config)
     const legacy = this.#clients.public('legacy')
     const solidRpc = this.#clients.public('solidrpc')
     const [legacyHead, solidRpcHead] = await Promise.all([
@@ -150,7 +152,7 @@ export class MigrationApp {
   }
 }
 
-class QualifiedReplacementApp {
+class QualifiedReadReplacementApp {
   readonly #clients: RpcClients
 
   constructor(config: MigrationConfig) {
@@ -166,9 +168,9 @@ class QualifiedReplacementApp {
     serializedTransaction: Hex,
   ): Promise<SubmittedTransaction> {
     const transactionHash = await this.#clients
-      .wallet('solidrpc')
+      .wallet('legacy')
       .sendRawTransaction({ serializedTransaction })
-    return { provider: 'solidrpc', transactionHash }
+    return { provider: 'legacy', transactionHash }
   }
 }
 
@@ -179,14 +181,14 @@ export function createMigrationApp(
   return new MigrationApp(config, dependencies)
 }
 
-export async function createQualifiedReplacementApp(
+export async function createQualifiedReadReplacementApp(
   config: MigrationConfig,
   address: Address,
   dependencies: MigrationDependencies = {},
-): Promise<QualifiedReplacementApp> {
-  requireSolidRpcApiKey(config)
+): Promise<QualifiedReadReplacementApp> {
+  resolveSolidRpcAuthentication(config)
   await readValidQualificationEvidence(config, address, dependencies)
-  return new QualifiedReplacementApp(config)
+  return new QualifiedReadReplacementApp(config)
 }
 
 export function providerLabel(provider: RpcProvider): string {

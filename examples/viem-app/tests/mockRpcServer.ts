@@ -7,6 +7,7 @@ export type RpcRequestRecord = {
   method: string
   params: unknown[]
   apiKey?: string
+  authorization?: string
 }
 
 export type MockRpcServerOptions = {
@@ -14,6 +15,9 @@ export type MockRpcServerOptions = {
   blockHash?: Hash | null
   balance?: bigint
   transactionHash?: Hash
+  chainId?: number
+  responseHeaders?: Record<string, string>
+  omitLimitHeaders?: boolean
 }
 
 export type MockRpcServer = {
@@ -34,6 +38,18 @@ const DEFAULT_BLOCK_HASH =
 const DEFAULT_TRANSACTION_HASH =
   '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' as Hash
 
+const DEFAULT_LIMIT_HEADERS = {
+  'X-RateLimit-Limit': '100',
+  'X-RateLimit-Burst': '200',
+  'X-RateLimit-Remaining': '199',
+  'X-RateLimit-Reset': '1',
+  'X-Quota-Limit': '1000000',
+  'X-Quota-Window': 'day',
+  'X-Quota-Used': '1',
+  'X-Quota-Remaining': '999999',
+  'X-Quota-Reset': '43200',
+}
+
 async function readBody(request: IncomingMessage): Promise<string> {
   let body = ''
   request.setEncoding('utf8')
@@ -45,6 +61,8 @@ async function readBody(request: IncomingMessage): Promise<string> {
 
 function rpcResult(method: string, options: MockRpcServerOptions): unknown {
   switch (method) {
+    case 'eth_chainId':
+      return toHex(options.chainId ?? 1)
     case 'eth_blockNumber':
       return toHex(options.blockNumber ?? 100n)
     case 'eth_getBlockByNumber':
@@ -63,8 +81,13 @@ function rpcResult(method: string, options: MockRpcServerOptions): unknown {
   }
 }
 
-function sendJson(response: ServerResponse, status: number, value: unknown): void {
-  response.writeHead(status, { 'content-type': 'application/json' })
+function sendJson(
+  response: ServerResponse,
+  status: number,
+  value: unknown,
+  headers: Record<string, string>,
+): void {
+  response.writeHead(status, { 'content-type': 'application/json', ...headers })
   response.end(JSON.stringify(value))
 }
 
@@ -79,31 +102,53 @@ export async function startMockRpcServer(
       const params = payload.params ?? []
       const apiKeyHeader = request.headers['x-api-key']
       const apiKey = Array.isArray(apiKeyHeader) ? apiKeyHeader[0] : apiKeyHeader
+      const authorizationHeader = request.headers.authorization
+      const authorization = Array.isArray(authorizationHeader)
+        ? authorizationHeader[0]
+        : authorizationHeader
       requests.push({
         method: payload.method,
         params,
         ...(apiKey ? { apiKey } : {}),
+        ...(authorization ? { authorization } : {}),
       })
+
+      const headers = options.omitLimitHeaders
+        ? { ...(options.responseHeaders ?? {}) }
+        : { ...DEFAULT_LIMIT_HEADERS, ...(options.responseHeaders ?? {}) }
 
       const result = rpcResult(payload.method, options)
       if (result === undefined) {
-        sendJson(response, 200, {
-          jsonrpc: '2.0',
-          id: payload.id,
-          error: { code: -32601, message: 'Method not found' },
-        })
+        sendJson(
+          response,
+          200,
+          {
+            jsonrpc: '2.0',
+            id: payload.id,
+            error: { code: -32601, message: 'Method not found' },
+          },
+          headers,
+        )
         return
       }
 
-      sendJson(response, 200, {
-        jsonrpc: '2.0',
-        id: payload.id,
-        result,
-      })
+      sendJson(
+        response,
+        200,
+        {
+          jsonrpc: '2.0',
+          id: payload.id,
+          result,
+        },
+        headers,
+      )
     } catch (error) {
-      sendJson(response, 500, {
-        error: error instanceof Error ? error.message : String(error),
-      })
+      sendJson(
+        response,
+        500,
+        { error: error instanceof Error ? error.message : String(error) },
+        {},
+      )
     }
   })
 

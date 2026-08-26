@@ -13,7 +13,7 @@ from urllib.parse import unquote, urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN_NAME = "migrate-to-solidrpc"
-RELEASE_VERSION = "0.1.0"
+RELEASE_VERSION = "0.1.1"
 REPOSITORY_URL = "https://github.com/SolidRPC/migrate-to-solidrpc"
 CODEX_MANIFEST = ROOT / ".codex-plugin" / "plugin.json"
 CLAUDE_MANIFEST = ROOT / ".claude-plugin" / "plugin.json"
@@ -393,7 +393,10 @@ def validate_claude_marketplace(marketplace: dict[str, Any], validation: Validat
 
 def validate_skill(validation: Validation) -> None:
     frontmatter, _ = load_skill(validation)
-    validation.check(set(frontmatter) == {"name", "description"}, "SKILL.md frontmatter needs only name and description")
+    validation.check(
+        set(frontmatter) == {"name", "description", "license"},
+        "SKILL.md frontmatter needs name, description, and license",
+    )
     validation.check(frontmatter.get("name") == PLUGIN_NAME, "SKILL.md name must match its directory")
     name = frontmatter.get("name")
     validation.check(
@@ -410,6 +413,7 @@ def validate_skill(validation: Validation) -> None:
         and ">" not in description,
         "SKILL.md description must be a non-empty string of at most 1024 characters",
     )
+    validation.check(frontmatter.get("license") == "MIT", "SKILL.md license must be MIT")
     agent_path = SKILL_ROOT / "agents" / "openai.yaml"
     if not agent_path.is_file():
         validation.errors.append("missing skills/migrate-to-solidrpc/agents/openai.yaml")
@@ -487,6 +491,50 @@ def validate_release_files(validation: Validation) -> None:
                 validation.errors.append(f"trailing whitespace in {relative}:{line_number}")
         if text and not text.endswith("\n"):
             validation.errors.append(f"missing final newline in {relative}")
+
+
+def validate_reachable_history(validation: Validation) -> None:
+    result = subprocess.run(
+        ["git", "log", "--all", "--format=", "--patch", "--no-ext-diff", "--binary"],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+    )
+    if result.returncode != 0:
+        validation.errors.append("git log failed while scanning reachable history")
+        return
+    history = result.stdout.decode("utf-8", errors="ignore")
+    for label, pattern in SECRET_PATTERNS.items():
+        if pattern.search(history):
+            validation.errors.append(f"possible {label} found in reachable Git history")
+
+
+def validate_public_version_references(validation: Validation) -> None:
+    current_tag = f"v{RELEASE_VERSION}"
+    for relative in (Path("README.md"), Path("tests/FORWARD_EVALUATION.md")):
+        text = read_text(ROOT / relative)
+        if text is None:
+            validation.errors.append(f"cannot read {relative} for version validation")
+            continue
+        versions = set(re.findall(r"\bv\d+\.\d+\.\d+\b", text))
+        validation.check(
+            versions == {current_tag},
+            f"{relative} public version references must all be {current_tag}",
+        )
+
+    changelog = read_text(ROOT / "CHANGELOG.md")
+    if changelog is None:
+        validation.errors.append("cannot read CHANGELOG.md for version validation")
+        return
+    headings = re.findall(r"^## \[([^]]+)\]", changelog, flags=re.MULTILINE)
+    validation.check(
+        bool(headings) and headings[0] == RELEASE_VERSION,
+        f"CHANGELOG.md latest heading must be {RELEASE_VERSION}",
+    )
+    validation.check(
+        f"[{RELEASE_VERSION}]: {REPOSITORY_URL}/releases/tag/{current_tag}" in changelog,
+        f"CHANGELOG.md must link release {current_tag}",
+    )
 
 
 def validate_markdown_links(validation: Validation) -> None:
@@ -625,6 +673,8 @@ def main() -> None:
     validate_node_engines(validation)
     validate_release_ref(validation)
     validate_release_files(validation)
+    validate_reachable_history(validation)
+    validate_public_version_references(validation)
     validate_markdown_links(validation)
     validate_worktree_whitespace(validation)
     validation.finish()

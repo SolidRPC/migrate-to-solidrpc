@@ -5,7 +5,7 @@ import {
   type PublicClient,
   type WalletClient,
 } from 'viem'
-import { requireSolidRpcApiKey } from './config'
+import { resolveSolidRpcAuthentication } from './authentication'
 import type { MigrationConfig, RpcProvider } from './types'
 
 export class RpcClients {
@@ -46,13 +46,13 @@ export class RpcClients {
       return http(this.#config.legacyRpcUrl, { retryCount: 0, timeout })
     }
 
-    const apiKey = requireSolidRpcApiKey(this.#config)
+    const authentication = resolveSolidRpcAuthentication(this.#config)
     const url =
       this.#config.solidRpcUrl ??
       `https://rpc.solidrpc.io/evm/${this.#config.chainId}`
 
     return http(url, {
-      fetchOptions: { headers: { 'X-API-Key': apiKey } },
+      fetchOptions: { headers: authentication.headers },
       retryCount: 0,
       timeout,
     })

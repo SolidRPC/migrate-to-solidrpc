@@ -1,10 +1,13 @@
 import 'dotenv/config'
+import { runCommand } from '../command'
 import { loadAccountAddress, loadMigrationConfig } from '../config'
 import { stringifyResult } from '../format'
 import { createMigrationApp } from '../migrationApp'
 
-const config = loadMigrationConfig()
-const app = createMigrationApp(config)
-const result = await app.readBalance(loadAccountAddress())
+await runCommand(async () => {
+  const config = loadMigrationConfig()
+  const app = createMigrationApp(config)
+  const result = await app.readBalance(loadAccountAddress())
 
-process.stdout.write(`${stringifyResult(result)}\n`)
+  process.stdout.write(`${stringifyResult(result)}\n`)
+})

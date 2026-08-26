@@ -13,7 +13,9 @@ secondary clients or accidentally retain a legacy pool.
 
 Separate public/read clients from wallet/write clients. In add mode, neither production
 client changes route. In replace mode, both portable reads and transaction submission use
-the one qualified SolidRPC transport, while a transaction is still sent exactly once.
+the one qualified SolidRPC transport only after each boundary, including write authorization, is
+qualified. If read qualification passes but write scope does not, keep the named write client on
+legacy, label the result partial, and send each transaction exactly once.
 
 ## Authentication choices
 
@@ -22,11 +24,14 @@ mechanism with the clean endpoint and `X-API-Key`. Read the installed version's 
 official documentation before choosing exact options; do not guess an API from another
 version.
 
-Use a credential-bearing URL only if the client genuinely accepts a URL string and cannot
-set headers, and only in a trusted runtime. Construct it in memory from the environment;
-do not store or log it. If the client is browser-side, do not solve header limitations by
-shipping the key in source, build-time environment, local storage, or a URL. Retain that
-route or use an existing trusted server proxy and report the boundary.
+If a trusted client supports only the standard `Authorization` header, it may send the API key
+as Bearer authentication. Do not use this fallback when `Authorization` already carries another
+credential or when the API key requires a customer JWT. Use a credential-bearing URL only if the
+client genuinely accepts a URL string and cannot set headers, and only in a trusted runtime.
+Construct it in memory from the environment; do not store or log it. Configure only one API-key
+transport. If the client is browser-side, do not solve header limitations by shipping the key in
+source, build-time environment, local storage, or a URL. Retain that route or use an existing
+trusted server proxy and report the boundary.
 
 Follow the project's environment convention. Add `SOLIDRPC_API_KEY` only when no comparable
 name exists. Validate missing configuration with a clear error that names the variable but
@@ -50,9 +55,24 @@ cutover an explicit source/deployment change, or require the durable evidence de
 production client. Evidence generation is a separate diagnostic action and must not activate the
 route automatically.
 
+Evidence used at runtime must be authenticated against edits, not merely associated with a
+credential fingerprint. Revalidate it with the current credential before constructing a qualified
+client, and cap its lifetime before any delegated JWT expiry with a clock-skew margin.
+
 Preserve current retry policy only when it retries the same SolidRPC endpoint and is safe
 for that method. Never automatically retry a write after an ambiguous response, and never
 retry it through the legacy provider.
+
+Expose authenticated response headers to the qualification path so it can record the effective
+`X-RateLimit-*` and `X-Quota-*` values without exposing request credentials. If the installed
+client hides headers, use a minimal isolated authenticated JSON-RPC probe through the same runtime
+and transport; count that method call in capacity evidence. Do not hardcode public plan limits.
+
+Treat an authenticated HTTP 429 as retryable only when `Retry-After` is present and the method is
+safe. A request whose valid-method batch exceeds the reported burst cannot succeed unchanged.
+Treat authenticated HTTP 402 as quota-blocked until the reported `X-Quota-Reset`, verified
+overage, or an approved upgrade; do not fall back to the legacy provider. A keyless public HTTP
+429/JSON-RPC `-32005` response is not authenticated qualification evidence.
 
 ## Comparison implementation
 
@@ -72,7 +92,8 @@ reliably rejects writes, signing, unknown methods, and mixed unsafe batches.
 Use the project's existing test stack. Mock JSON-RPC servers on ephemeral ports and assert
 request method, headers where safely represented by fixtures, payload, and per-provider
 counts. Include success, mismatch, catalogue failure, missing configuration, unsupported
-coverage, and write-path cases appropriate to the chosen mode.
+coverage, capacity insufficiency, oversize batch, recoverable/non-recoverable rate limits,
+quota exhaustion, and write-path cases appropriate to the chosen mode.
 
 Run the relevant type checker, tests, lint/build checks that do not rewrite files, diff
 whitespace checks, and a tracked-files scan for secret-bearing environment files and

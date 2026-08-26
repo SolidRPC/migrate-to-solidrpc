@@ -1,177 +1,186 @@
 # Forward evaluation report
 
-Release: `v0.1.0`
+Release: `v0.1.1`
 
 Date: 2026-08-26
 
-This report records release-stage tests of the shared `migrate-to-solidrpc` skill, the
-artifact-gated viem example, and its Codex and Claude Code plugin packaging. No evaluator
-received a real credential. An earlier authenticated read-only probe is retained separately
-and explicitly limited below.
+This report records independent skill runs, deterministic sample tests, authenticated read-only
+qualification, and Codex/Claude plugin checks for `migrate-to-solidrpc`. Credentials are never
+included. Qualification evidence from these runs applies only to the tested fixture or sample
+configuration and must not be reused for another application.
 
 ## Source fixture
 
-Each independent agent received a fresh copy of `tests/fixtures/viem-app-before` and the
-release skill path. The fixture is a Node.js TypeScript application using viem 2.55.19 with:
+Each independent agent received a fresh isolated copy of
+`tests/fixtures/viem-app-before` plus the release skill. The untouched TypeScript/viem fixture has:
 
 - portable HTTPS reads through `PRIMARY_RPC_URL`;
 - signed raw-transaction submission through that provider;
-- an independent WebSocket block subscription through `PRIMARY_WS_URL`;
+- an independent WebSocket subscription through `PRIMARY_WS_URL`;
 - deterministic JSON-RPC mocks on ephemeral ports; and
 - three passing baseline tests.
 
-The fixture was not changed in this repository. Its clean install, type check, and 3/3 tests
-passed before and after the evaluations.
+The fixture in this repository was not modified. Its clean installation, type check, and 3/3
+tests passed.
 
 ## Independent Codex forward runs
 
 ### Default add mode
 
 - Request: `Add SolidRPC to this application.`
-- Isolated workspace: `/private/tmp/migrate-v010-codex-add.CnkLQn`
+- Isolated workspace: `/private/tmp/migrate-v011-add-eval.IfDUtA`
+- Baseline commit: `63cd946`
 - Result: passed.
 
-The agent preserved the production HTTPS, write, and WebSocket routes. It added a separately
-invoked `compare:solidrpc` command with a fixed read allowlist. The command fetches the live
-catalog, resolves the existing provider's finalized block, verifies both providers return the
-same canonical hash at the exact block number, and compares `eth_getBalance`. A mismatch is
-reported while the existing-provider value remains authoritative.
+The agent left `src/provider.ts`, `src/config.ts`, and `src/index.ts` unchanged. Production HTTPS
+reads, signed writes, and WebSocket subscriptions remain exclusively on the existing provider. It
+added one manually invoked, fixed-allowlist comparison path using the clean chain-1 endpoint and
+`X-API-Key`; no fallback, runtime selector, background mirror, or write path reaches SolidRPC.
 
-Resulting diff:
+Changed files:
 
-- Modified `.env.example`, `README.md`, `package.json`, and `src/config.ts`.
-- Added `.gitignore`, `SOLIDRPC_MIGRATION.md`, `src/compare-solidrpc.ts`,
-  `src/solidrpc-comparison.ts`, and `test/solidrpc-comparison.test.ts`.
-- Production provider construction and the WebSocket implementation were unchanged.
+- `.env.example`, `.gitignore`, `README.md`, `package.json`, and
+  `test/provider.test.ts`;
+- new `src/compare.ts`, `src/comparison.ts`, and `SOLIDRPC_MIGRATION.md`.
 
 Evidence:
 
-- Live catalog fetch at `2026-08-26T09:16:53.315Z`: chain 1 was `live` with `full` and
-  `archive` node types and `standard`, `trace`, and `debug` families.
-- `npm run typecheck`: passed.
-- `npm test`: passed, 2 files and 10 tests.
-- Normal reads and writes reached only the existing provider; SolidRPC received no production,
-  fallback, mirror, background, or write traffic.
-- The manual comparison used the clean endpoint with `X-API-Key`, disabled retries, and exposed
-  no arbitrary RPC method input.
-- No credential was available. The missing-key CLI check failed with a value-free error, and no
-  authenticated comparison was claimed.
+- The live catalog was fetched at `2026-08-26T18:42:06Z`; it returned 57 entries and listed
+  Ethereum chain 1 as `live` with `full`/`archive` and `standard`/`trace`/`debug`.
+- Normal tests recorded two legacy production reads and zero SolidRPC production reads. The write
+  fixture reached the legacy provider once and SolidRPC zero times.
+- A successful manual mock comparison made three legacy reads and two SolidRPC reads after one
+  catalog fetch. Missing credentials or unsupported coverage stopped before either RPC provider.
+- The migration record left batch size, expanded traffic, quota-window demand, shared traffic,
+  retry amplification, and headroom explicitly unmeasured. It recorded zero authenticated live
+  probes instead of inventing capacity evidence.
+- `npm ci`, type checking, 8/8 tests, diff checking, environment-file review, and credential-pattern
+  scanning passed with zero audit vulnerabilities.
 
-### Explicit replace mode without a credential
+### Explicit replace mode without qualification inputs
 
-- Request: replace the current main provider with SolidRPC and preserve the WebSocket path only
-  where incompatible.
-- Isolated workspace: `/private/tmp/migrate-v010-codex-replace.H9JZ5M`
+- Request: replace the main provider and use SolidRPC as the only compatible HTTPS JSON-RPC route.
+- Isolated workspace: `/private/tmp/migrate-v011-replace-eval.dZuCcg`
 - Result: safely blocked.
 
-The agent prepared an inactive SolidRPC client but left the executable wired to the existing
-provider because authenticated representative probes could not run. It added no runtime provider
-selector or automatic fallback. The eventual qualified result is explicitly described as a
-partial replacement: SolidRPC owns compatible HTTPS traffic, while the legacy route remains active
-only for WebSocket subscriptions.
+The same live catalog passed at `2026-08-26T18:42:11.724Z`, but no intended production credential
+or measured capacity profile was available. The agent therefore left the active HTTPS, write, and
+WebSocket routes unchanged. It added only inactive candidate configuration using the clean
+endpoint; the executable neither imports nor constructs the candidate client.
 
-Resulting diff:
+Changed files:
 
-- Modified `.env.example`, `.gitignore`, `README.md`, `src/config.ts`, `src/provider.ts`, and
-  `test/provider.test.ts`.
-- Added `SOLIDRPC_MIGRATION.md`.
-- `src/index.ts`, the active provider selection, and the WebSocket implementation were unchanged.
+- `.env.example`, `.gitignore`, `README.md`, `src/provider.ts`, and
+  `test/provider.test.ts`;
+- new `src/solidrpc.ts` and `SOLIDRPC_MIGRATION.md`.
 
 Evidence:
 
-- Live catalog fetch at `2026-08-26T09:12:18.068Z`: chain 1 was `live` with the required
-  `standard` family and `full` coverage.
-- `npm run typecheck`: passed.
-- `npm test`: passed, 7/7 tests.
-- Existing-provider reads and exactly-once writes remained active; SolidRPC received zero
-  production requests.
-- Deterministic tests proved both prepared providers submit a signed transaction once with
-  `retryCount: 0`, including an ambiguous HTTP failure.
-- The prepared SolidRPC client used the clean endpoint with `X-API-Key` and was constructed only
-  by tests.
-- Missing credential, authenticated stable-read behavior, intended-runtime deployment, direct
-  source cutover, and zero-legacy-HTTPS tests remained blocked gates.
+- Credential qualification made zero authenticated JSON-RPC probes.
+- Effective rate, burst, quota, remaining capacity, batch-expanded demand, retry amplification,
+  shared traffic, and headroom were all recorded as blocked rather than inferred from a plan.
+- Across the suite, the existing provider received five HTTP calls and SolidRPC received zero.
+  Successful and ambiguous-HTTP transaction tests each submitted exactly once with retries
+  disabled.
+- WebSocket/`eth_subscribe` remained exclusively on `PRIMARY_WS_URL` as a partial-migration
+  boundary.
+- `npm ci`, type checking, 6/6 tests, diff checking, environment-file review, and credential-pattern
+  scanning passed with zero audit vulnerabilities.
 
-These outcomes demonstrate that the same skill interprets an ordinary “add” request as add mode
-and an explicit replacement request as replace mode without allowing the latter to bypass failed
-qualification gates.
+These two runs show that ordinary migration language selects add mode, while explicit replacement
+cannot bypass missing credential or capacity evidence.
 
-## Release sample qualification tests
+## Release sample behavior
 
-The completed sample in `examples/viem-app` is deliberately stricter than a provider-name runtime
-switch:
+The completed sample in `examples/viem-app` has separate entrypoints:
 
-- `npm run app` is hard-wired to the legacy provider.
-- `npm run rpc:compare` fetches and validates the live catalog before either RPC provider receives
-  comparison traffic.
-- `npm run rpc:qualify` performs the catalog check and authenticated stable-block/hash comparison,
-  then atomically writes ignored, non-secret evidence only on a matching result.
-- `npm run app:solidrpc` requires a credential plus unexpired evidence bound to replace mode, chain,
-  clean endpoint, catalog endpoint, comparison address, configuration fingerprint, and the
-  `viem-sample-routing-invariants-v1` release-check identifier.
-- Evidence generation never changes routing and never sends a write.
+- `npm run app` is permanently wired to the legacy provider.
+- `npm run rpc:compare` validates the live catalog, then makes a manual three-call SolidRPC stable
+  read comparison. It does not require a capacity profile and cannot change routing.
+- `npm run rpc:qualify` validates the catalog, makes one authenticated `eth_chainId` capacity
+  probe, evaluates measured demand against live limit/quota headers, performs the comparison, and
+  atomically writes HMAC-protected evidence only on success.
+- `npm run app:solidrpc` is a partial read-replacement entrypoint. It requires the credential plus
+  unexpired schema-v2 evidence bound to the chain, endpoints, address, credentials,
+  authentication shape, capacity profile, and
+  `viem-sample-partial-read-routing-invariants-v3` check. Qualified reads use SolidRPC only;
+  `eth_sendRawTransaction` remains explicitly legacy until write scope is separately proven.
 
-The sample's 13 deterministic tests passed. They prove:
+The 39 deterministic sample tests passed. They cover:
 
-- default reads and writes are legacy-only;
-- manual comparison validates the catalog first and leaves the legacy result authoritative;
-- catalog outage, malformed data, missing chain, and missing credential stop before RPC traffic;
-- mismatch or canonical-block disagreement cannot create evidence;
-- missing, malformed, expired, wrong-chain, wrong-endpoint, wrong-mode, wrong-address, and tampered
-  routing-check evidence cannot activate replacement;
-- valid evidence allows portable reads only through SolidRPC even when the legacy endpoint is
-  unreachable; and
-- default and qualified signed transactions each reach their one active provider exactly once.
+- legacy-only default routing and catalog-before-comparison ordering;
+- unavailable/malformed catalog, unsupported chain, missing credential, and missing capacity;
+- stable block/hash comparison with the legacy result remaining authoritative;
+- coherent authenticated `X-RateLimit-*` and `X-Quota-*` parsing, day/month window selection,
+  insufficient quota or remaining-window headroom, insufficient burst, missing headers, and
+  wrong-chain responses;
+- explicit demand for valid-method batch size, sustained/peak method calls, shared traffic, retry
+  amplification, quota-window units, and headroom;
+- schema-v2 evidence expiry at the earliest of its TTL, live quota reset, and delegated-JWT `exp`
+  minus safety skew, plus HMAC rejection of shape-valid payload edits;
+- preferred `X-API-Key`, constrained Bearer API-key fallback, customer-JWT coexistence, and
+  duplicate URL/header transport rejection, with evidence invalidation after key or JWT rotation;
+- recoverable authenticated 429, non-retryable oversized batch even with contradictory
+  `Retry-After`, authenticated 402, HTTP-200 JSON-RPC errors, and public 429/JSON-RPC `-32005`
+  classification;
+- percent-encoded duplicate URL credentials, official public/demo alias rejection, and sanitized
+  command failures; and
+- SolidRPC-only qualified reads plus exactly-once retained-legacy writes with no cross-provider
+  retry or shadow.
 
-The sample's live catalog parser was also run against `https://api.solidrpc.io/networks` at
-`2026-08-26T09:20:32.585Z`. It selected Ethereum chain 1 as `live` with `full`/`archive` and
-`standard`/`trace`/`debug`. This validates current discovery parsing only; it is not authenticated
-RPC qualification.
+A successful comparison records three SolidRPC method calls. A successful partial read
+qualification records four calls/response units: one capacity probe plus the three comparison
+calls. The sample refuses a boolean-only overage assertion; capacity beyond returned headers needs
+separately approved and account-verified evidence before adapting the gate.
+
+## Authenticated final-flow probe
+
+An owner-provided temporary credential exercised the final v0.1.1 entrypoints. The key was read
+without terminal echo into a short-lived process environment, sent only through `X-API-Key` to the
+clean endpoint, and never placed in a command line, file, URL, report, or repository output.
+
+At `2026-08-26T19:24:28Z`:
+
+- the live catalog qualified Ethereum chain 1 with `standard` coverage;
+- the authenticated response supplied all required rate, burst, quota-window, usage, remaining,
+  and reset headers;
+- a deliberately bounded evaluation profile passed the capacity calculation;
+- an external existing provider and SolidRPC returned the same canonical hash and balance at
+  block `25841447`;
+- `rpc:qualify` wrote secret-free, HMAC-protected schema-v2 evidence for four calls/response units;
+  and
+- `app:solidrpc` accepted that evidence and completed a SolidRPC-labeled balance read while naming
+  `eth_sendRawTransaction` as retained legacy behavior.
+
+The evaluation profile used a one-method largest batch, 0.1 sustained and 1 peak method call per
+second, 3,000 monthly units, no shared traffic, no retry amplification, and 20 percent headroom.
+Those illustrative inputs are not a production traffic measurement. The live run qualifies only
+that sample invocation, not another application, a production workload, or transaction
+submission. An API-key-pattern scan of the ignored evidence file passed.
 
 ## Claude Code compatibility
 
-The release uses the same `skills/migrate-to-solidrpc/SKILL.md` and references for both hosts.
-Claude-specific packaging is limited to `.claude-plugin/plugin.json` and
-`.claude-plugin/marketplace.json`; the explicit invocation is
-`/migrate-to-solidrpc:migrate-to-solidrpc`.
+The Codex and Claude packages share the same `SKILL.md` and references. Claude-specific files are
+limited to `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`; explicit invocation
+is `/migrate-to-solidrpc:migrate-to-solidrpc`.
 
 Validated with Claude Code 2.1.224:
 
 - `claude plugin validate --strict .`: passed.
-- `claude --plugin-dir . plugin details migrate-to-solidrpc`: discovered version 0.1.0 and exactly
+- `claude --plugin-dir . plugin details migrate-to-solidrpc`: discovered version 0.1.1 and exactly
   one skill.
-- An isolated local marketplace add and install resolved `migrate-to-solidrpc@solidrpc` version
-  0.1.0.
+- An isolated local marketplace add/install resolved enabled
+  `migrate-to-solidrpc@solidrpc` version 0.1.1.
 
-A full Claude model-driven fixture migration was attempted through `--plugin-dir`, but Claude Code
-stopped before processing the prompt because the local OAuth session was expired and no Anthropic
-API key was configured. No target-project change occurred. Therefore this release claims Claude
-Code manifest, marketplace, installation, and discovery compatibility; it does not claim a
-completed Claude model-behavior evaluation. The shared instructions themselves were independently
-exercised by the two Codex runs above.
-
-## Earlier authenticated read-only probe
-
-An owner-provided temporary credential was used before the release hardening for a sanitized,
-read-only Ethereum probe. It was inherited in memory by the probe process, sent only as an
-`X-API-Key` header to the clean endpoint, and never placed in a command line, file, URL, report, or
-repository output.
-
-At `2026-08-26T08:19:00Z`, the live catalog qualified chain 1 and an independent public existing
-provider and SolidRPC returned the same canonical block hash and balance at block `25838127`. A
-SolidRPC-only read also succeeded with the legacy URL deliberately unreachable. No transaction,
-signing request, trace/debug call, archive-depth boundary, WebSocket request, or state-changing
-method was sent.
-
-That pre-release sample used the now-removed `RPC_PRIMARY` switch. Its endpoint/authentication and
-stable-read result remains useful integration evidence, but it is not qualification evidence for
-the v0.1.0 artifact-gated replacement entrypoint. The release's durable-evidence behavior is proven
-by the deterministic tests above. Secret-pattern scans of the current tree and complete Git history
-found no API-key-shaped value.
+A full model-driven fixture run was attempted through the plugin. Claude Code stopped before
+processing the prompt because its local OAuth session was expired and no Anthropic API key was
+configured. The disposable target project was not changed. This release therefore claims Claude
+manifest, installation, and discovery compatibility, but not a completed Claude model-behavior
+evaluation.
 
 ## Repository validation
 
-Release checks run locally:
+Release checks:
 
 ```text
 python3 <skill-creator>/scripts/quick_validate.py skills/migrate-to-solidrpc
@@ -185,36 +194,34 @@ git diff --check
 
 Outcomes:
 
-- Bundled skill validation: passed.
-- Bundled Codex plugin validation: passed.
-- Claude strict plugin/marketplace validation: passed.
-- Offline release metadata, path, Markdown-link, license, security, environment-file, whitespace,
-  and secret validation: passed.
-- Migrated sample: clean install, zero reported vulnerabilities, type checking, and 13/13 tests
-  passed.
-- Untouched fixture: clean install, zero reported vulnerabilities, type checking, and 3/3 tests
-  passed.
-- Working-tree and complete-history secret-pattern scans: passed without printing suspected values.
-- Local Node.js execution used 24.4.1. Both projects declare ranges compatible with Node.js 22, and
-  CI executes the same install/typecheck/test matrix on Node.js 22.
+- Bundled skill and Codex plugin validation passed.
+- Claude strict manifest/marketplace validation and isolated local installation passed.
+- Release metadata, matching 0.1.1 versions, tag-name binding, Markdown links, license, security,
+  environment files, whitespace, and secret rules passed.
+- The sample passed a clean install, zero audit vulnerabilities, type checking, and 39/39 tests.
+- The untouched fixture passed a clean install, zero audit vulnerabilities, type checking, and
+  3/3 tests.
+- Working-tree and reachable-history credential-pattern scans passed without printing suspected
+  values.
+- Node.js 24.4.1 was used locally; both projects declare ranges compatible with the Node.js 22 CI
+  matrix.
 
 ## Conclusions and limitations
 
-The release removes the unqualified runtime cutover path, validates the live catalog in the sample
-comparison, requires durable matching evidence for the sample's SolidRPC-only entrypoint, packages
-one shared skill for Codex and Claude Code, and fails safely across the tested routing and evidence
-gates.
+Version 0.1.1 adds the missing fail-closed capacity gate, runtime limit/error semantics, constrained
+Bearer compatibility, authenticated evidence integrity, JWT-bounded expiry, and capacity-bound
+evidence while preserving default-mode isolation and exactly-once writes. The sample explicitly
+models partial read replacement: its live-qualified read route is SolidRPC-only, while its
+unqualified transaction route remains legacy. The final authenticated sample flow removes reliance
+on the superseded pre-hardening runtime-switch probe.
 
 Known limitations:
 
-- Live authenticated behavior was exercised only for Ethereum standard reads before the final
-  artifact-gated redesign; no live write, trace/debug, batch, or archive-depth boundary was tested.
-- Deterministic mocks prove routing invariants, not SolidRPC availability or every JSON-RPC method
-  and parameter combination.
-- The sample check identifier is release metadata, not a cryptographic attestation that a local
-  operator ran `npm test`; CI and deployment controls must enforce project checks.
+- The live authenticated run covered Ethereum standard reads only. It did not submit a live
+  transaction or exercise trace/debug, batches, deep archive boundaries, or upstream failure.
+- Deterministic mocks prove routing and evidence invariants, not SolidRPC availability or every
+  JSON-RPC method/parameter combination.
 - WebSocket subscriptions remain an explicit partial-migration boundary.
-- Browser-only clients, other RPC libraries, enhanced APIs, webhooks, and non-EVM protocols require
-  project-specific inventory and qualification.
-- A full authenticated Claude model run remains outstanding because the local Claude Code session
-  was not authenticated during release testing.
+- Browser clients, enhanced APIs, webhooks, other client libraries, and non-EVM protocols require
+  project-specific qualification.
+- A completed authenticated Claude model-driven migration remains outstanding.

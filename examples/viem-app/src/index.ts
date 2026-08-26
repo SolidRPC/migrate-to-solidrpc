@@ -1,3 +1,6 @@
+export * from './authentication'
+export * from './capacity'
+export * from './command'
 export * from './catalog'
 export * from './config'
 export * from './migrationApp'

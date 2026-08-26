@@ -1,6 +1,6 @@
 {
   "name": "migrate-to-solidrpc",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Safely add SolidRPC to an EVM application or replace its current RPC provider after qualification",
   "author": {
     "name": "SolidRPC",

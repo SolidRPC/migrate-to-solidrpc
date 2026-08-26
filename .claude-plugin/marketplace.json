@@ -6,14 +6,14 @@
   },
   "metadata": {
     "description": "Official SolidRPC migration skills",
-    "version": "0.1.0"
+    "version": "0.1.1"
   },
   "plugins": [
     {
       "name": "migrate-to-solidrpc",
       "source": "./",
       "description": "Safely add SolidRPC to an EVM application or replace its current RPC provider after qualification",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "author": {
         "name": "SolidRPC"
       },
