@@ -40,6 +40,33 @@ When a gate fails, leave the existing active route untouched. Record the failed 
 safe work completed, and the exact remaining action. Do not add a runtime flag that can
 accidentally activate an unqualified route merely by setting an environment variable.
 
+## Durable qualification evidence
+
+Prefer a direct source or deployment-config cutover performed after the gates pass. When a
+sample, template, or operational workflow must retain runtime-selectable legacy and SolidRPC
+routes, SolidRPC activation must require a generated qualification artifact in addition to the
+credential. Never treat a provider-name environment variable, boolean, or credential presence as
+qualification.
+
+Generate the artifact only from an explicit qualification command after catalogue validation and
+authenticated representative reads succeed. Keep it non-secret and environment-specific. Record
+at least:
+
+- a schema version, requested mode, chain ID, and clean SolidRPC endpoint;
+- catalogue endpoint, fetch time, status, required method families, and required node types;
+- the stable block number/hash and the representative read shapes that passed;
+- qualification and expiry times; and
+- booleans or identifiers for the deterministic project checks that were required.
+
+Do not include an API key, credential-bearing URL, raw environment output, or signed transaction.
+Ignore local evidence files by default or store them in the deployment control plane. At startup,
+validate the artifact schema, chain, endpoint, mode, and expiry before constructing a SolidRPC
+production client. Missing, malformed, expired, or mismatched evidence must fail before any
+SolidRPC or legacy request. Creating evidence must never itself change production routing.
+
+Tests for a selectable sample must cover missing, malformed, expired, wrong-chain, wrong-endpoint,
+and valid evidence. The valid case must prove the legacy HTTPS route receives zero requests.
+
 ## Add-mode comparison behavior
 
 The comparison entrypoint must be explicit, such as a developer CLI command or isolated
@@ -74,7 +101,8 @@ Create or update one file at the project root with these sections:
    transport, methods, writes, history requirement, current provider, and tests.
 3. **Coverage evidence:** catalogue endpoint and fetch time, required versus advertised
    chain/family/node coverage, authenticated probes, and gaps. Record credential state only
-   as configured/missing/untested.
+   as configured/missing/untested. If durable qualification evidence controls activation,
+   record its non-secret schema/version, expiry, and storage location.
 4. **Routing after this change:** a table mapping portable reads, writes, manual comparison,
    WebSockets/subscriptions, and proprietary features to their active provider. State
    explicitly whether SolidRPC receives production traffic.

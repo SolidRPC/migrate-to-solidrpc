@@ -44,6 +44,12 @@ configuration available for deliberate rollback, but do not instantiate it on qu
 portable paths. If incompatible capabilities remain, select them by an explicit feature or
 method boundary, never by catch-all error fallback.
 
+Do not expose a bare provider selector in a sample or reusable runtime. Either make the qualified
+cutover an explicit source/deployment change, or require the durable evidence defined in
+[migration modes and qualification gates](migration-modes.md) before constructing the SolidRPC
+production client. Evidence generation is a separate diagnostic action and must not activate the
+route automatically.
+
 Preserve current retry policy only when it retries the same SolidRPC endpoint and is safe
 for that method. Never automatically retry a write after an ambiguous response, and never
 retry it through the legacy provider.

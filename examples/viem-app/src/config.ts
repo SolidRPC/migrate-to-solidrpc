@@ -1,6 +1,10 @@
 import type { Address } from 'viem'
 import { getAddress } from 'viem'
-import type { MigrationConfig, RpcProvider } from './types'
+import type { MigrationConfig } from './types'
+
+export const DEFAULT_CATALOG_URL = 'https://api.solidrpc.io/networks'
+export const DEFAULT_QUALIFICATION_FILE = '.solidrpc/qualification.json'
+export const DEFAULT_QUALIFICATION_TTL_MS = 24 * 60 * 60 * 1_000
 
 const DEFAULT_CHAIN_ID = 1
 
@@ -12,7 +16,7 @@ export class MissingSolidRpcCredentialError extends ConfigurationError {
   override readonly name: string = 'MissingSolidRpcCredentialError'
 
   constructor() {
-    super('SOLIDRPC_API_KEY is required for SolidRPC comparison or primary traffic')
+    super('SOLIDRPC_API_KEY is required for SolidRPC qualification or replacement')
   }
 }
 
@@ -27,18 +31,6 @@ function parseChainId(value: string | undefined): number {
   }
 
   return chainId
-}
-
-function parsePrimaryProvider(value: string | undefined): RpcProvider {
-  if (value === undefined || value.trim() === '' || value === 'legacy') {
-    return 'legacy'
-  }
-
-  if (value === 'solidrpc') {
-    return 'solidrpc'
-  }
-
-  throw new ConfigurationError('RPC_PRIMARY must be either legacy or solidrpc')
 }
 
 function requireLegacyUrl(value: string | undefined): string {
@@ -58,10 +50,11 @@ export function loadMigrationConfig(
 
   return {
     chainId,
-    primaryProvider: parsePrimaryProvider(environment.RPC_PRIMARY),
     legacyRpcUrl: requireLegacyUrl(environment.LEGACY_RPC_URL),
     solidRpcApiKey: apiKey || undefined,
     solidRpcUrl: `https://rpc.solidrpc.io/evm/${chainId}`,
+    catalogUrl: DEFAULT_CATALOG_URL,
+    qualificationFile: DEFAULT_QUALIFICATION_FILE,
   }
 }
 
@@ -87,4 +80,30 @@ export function requireSolidRpcApiKey(config: MigrationConfig): string {
   }
 
   return apiKey
+}
+
+export function solidRpcUrl(config: MigrationConfig): string {
+  return config.solidRpcUrl ?? `https://rpc.solidrpc.io/evm/${config.chainId}`
+}
+
+export function catalogUrl(config: MigrationConfig): string {
+  return config.catalogUrl ?? DEFAULT_CATALOG_URL
+}
+
+export function qualificationFile(config: MigrationConfig): string {
+  return config.qualificationFile ?? DEFAULT_QUALIFICATION_FILE
+}
+
+export function qualificationTtlMs(config: MigrationConfig): number {
+  const value = config.qualificationTtlMs ?? DEFAULT_QUALIFICATION_TTL_MS
+  if (
+    !Number.isSafeInteger(value) ||
+    value <= 0 ||
+    value > DEFAULT_QUALIFICATION_TTL_MS
+  ) {
+    throw new ConfigurationError(
+      `qualificationTtlMs must be between 1 and ${DEFAULT_QUALIFICATION_TTL_MS}`,
+    )
+  }
+  return value
 }

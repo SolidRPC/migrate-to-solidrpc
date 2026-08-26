@@ -6,6 +6,8 @@
   "scripts": {
     "app": "tsx src/commands/app.ts",
     "rpc:compare": "tsx src/commands/compare.ts",
+    "rpc:qualify": "tsx src/commands/qualify.ts",
+    "app:solidrpc": "tsx src/commands/replacement.ts",
     "test": "tsx --test tests/**/*.test.ts",
     "typecheck": "tsc --noEmit"
   },

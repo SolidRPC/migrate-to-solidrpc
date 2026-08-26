@@ -1,132 +1,183 @@
 # Forward evaluation report
 
+Release: `v0.1.0`
+
 Date: 2026-08-26
 
-This report records independent-agent evaluations of `migrate-to-solidrpc`. Each agent received the skill path, one migration request, and a fresh temporary copy of `tests/fixtures/viem-app-before`. The agents did not receive another evaluator's output. Real credentials were unavailable to those agents by design. After the independent runs, an owner-supplied temporary credential was used for a separate sanitized, read-only live probe.
+This report records release-stage tests of the shared `migrate-to-solidrpc` skill, the
+artifact-gated viem example, and its Codex and Claude Code plugin packaging. No evaluator
+received a real credential. An earlier authenticated read-only probe is retained separately
+and explicitly limited below.
 
 ## Source fixture
 
-The untouched fixture is a Node.js 22 TypeScript application using viem 2.55.19. It has:
+Each independent agent received a fresh copy of `tests/fixtures/viem-app-before` and the
+release skill path. The fixture is a Node.js TypeScript application using viem 2.55.19 with:
 
 - portable HTTPS reads through `PRIMARY_RPC_URL`;
-- signed raw transaction submission through the same provider;
-- a separate WebSocket block subscription through `PRIMARY_WS_URL`;
-- deterministic JSON-RPC mocks on ephemeral local ports; and
+- signed raw-transaction submission through that provider;
+- an independent WebSocket block subscription through `PRIMARY_WS_URL`;
+- deterministic JSON-RPC mocks on ephemeral ports; and
 - three passing baseline tests.
 
-Before the evaluation copies were made, the fixture passed `npm ci`, `npm run typecheck`, and `npm test` (3/3 tests).
+The fixture was not changed in this repository. Its clean install, type check, and 3/3 tests
+passed before and after the evaluations.
 
-## Independent runs
+## Independent Codex forward runs
 
 ### Default add mode
 
-Request: add SolidRPC to the application using the skill's default behavior.
+- Request: `Add SolidRPC to this application.`
+- Isolated workspace: `/private/tmp/migrate-v010-codex-add.CnkLQn`
+- Result: passed.
 
-Workspace: `/private/tmp/migrate-eval-add.eUpSkQ`
-
-Result: passed. The agent preserved every production HTTP, write, and WebSocket route. It added a manually invoked `compare:solidrpc` command that verifies the live catalog, resolves a finalized block through the existing provider, confirms the same canonical block hash through SolidRPC, and compares `eth_getBalance` at that exact block. The existing provider remains authoritative on mismatch.
+The agent preserved the production HTTPS, write, and WebSocket routes. It added a separately
+invoked `compare:solidrpc` command with a fixed read allowlist. The command fetches the live
+catalog, resolves the existing provider's finalized block, verifies both providers return the
+same canonical hash at the exact block number, and compares `eth_getBalance`. A mismatch is
+reported while the existing-provider value remains authoritative.
 
 Resulting diff:
 
-- Added `.gitignore`, `SOLIDRPC_MIGRATION.md`, `src/compare-solidrpc.ts`, `src/solidrpc-comparison.ts`, and `test/solidrpc-comparison.test.ts`.
-- Updated `.env.example`, `README.md`, `package.json`, `src/config.ts`, and `test/provider.test.ts`.
-- No production provider construction or WebSocket implementation changed.
+- Modified `.env.example`, `README.md`, `package.json`, and `src/config.ts`.
+- Added `.gitignore`, `SOLIDRPC_MIGRATION.md`, `src/compare-solidrpc.ts`,
+  `src/solidrpc-comparison.ts`, and `test/solidrpc-comparison.test.ts`.
+- Production provider construction and the WebSocket implementation were unchanged.
 
 Evidence:
 
+- Live catalog fetch at `2026-08-26T09:16:53.315Z`: chain 1 was `live` with `full` and
+  `archive` node types and `standard`, `trace`, and `debug` families.
 - `npm run typecheck`: passed.
-- `npm test`: 9/9 tests passed.
-- Missing credentials stop before provider traffic.
-- Catalog failure or missing method-family coverage stops before provider traffic.
-- Mismatches are reported without replacing the production result.
-- `eth_sendRawTransaction` reaches the existing provider exactly once and never reaches SolidRPC.
-- The comparison uses the clean endpoint with `X-API-Key`; no key is printed or committed.
+- `npm test`: passed, 2 files and 10 tests.
+- Normal reads and writes reached only the existing provider; SolidRPC received no production,
+  fallback, mirror, background, or write traffic.
+- The manual comparison used the clean endpoint with `X-API-Key`, disabled retries, and exposed
+  no arbitrary RPC method input.
+- No credential was available. The missing-key CLI check failed with a value-free error, and no
+  authenticated comparison was claimed.
 
-### Explicit replace request without credentials
+### Explicit replace mode without a credential
 
-Request: replace the current main HTTPS JSON-RPC provider with SolidRPC, while retaining incompatible WebSocket behavior.
+- Request: replace the current main provider with SolidRPC and preserve the WebSocket path only
+  where incompatible.
+- Isolated workspace: `/private/tmp/migrate-v010-codex-replace.H9JZ5M`
+- Result: safely blocked.
 
-Workspace: `/private/tmp/migrate-eval-replace.xzThMT`
-
-Result: safely blocked. The live catalog qualified Ethereum chain 1 for the observed `standard` calls, but authenticated representative probes could not run without a key. The agent prepared an isolated, inactive SolidRPC candidate and left all production traffic on the existing provider. It did not add a runtime cutover flag, automatic fallback, mirror, or fanout.
+The agent prepared an inactive SolidRPC client but left the executable wired to the existing
+provider because authenticated representative probes could not run. It added no runtime provider
+selector or automatic fallback. The eventual qualified result is explicitly described as a
+partial replacement: SolidRPC owns compatible HTTPS traffic, while the legacy route remains active
+only for WebSocket subscriptions.
 
 Resulting diff:
 
+- Modified `.env.example`, `.gitignore`, `README.md`, `src/config.ts`, `src/provider.ts`, and
+  `test/provider.test.ts`.
 - Added `SOLIDRPC_MIGRATION.md`.
-- Updated `.env.example`, `README.md`, `src/config.ts`, `src/provider.ts`, and `test/provider.test.ts`.
-- The production entrypoint remained on `PrimaryRpc`; the candidate was reachable only from deterministic tests.
+- `src/index.ts`, the active provider selection, and the WebSocket implementation were unchanged.
 
 Evidence:
 
+- Live catalog fetch at `2026-08-26T09:12:18.068Z`: chain 1 was `live` with the required
+  `standard` family and `full` coverage.
 - `npm run typecheck`: passed.
-- `npm test`: 5/5 tests passed.
-- Existing-provider reads and writes remained active; SolidRPC received zero application traffic.
-- Candidate requests used `X-API-Key` and exactly-once write tests issued one request.
-- The WebSocket/`eth_subscribe` path remained explicitly on the legacy provider.
-- `SOLIDRPC_MIGRATION.md` records the missing credential and authenticated-probe gates before cutover.
+- `npm test`: passed, 7/7 tests.
+- Existing-provider reads and exactly-once writes remained active; SolidRPC received zero
+  production requests.
+- Deterministic tests proved both prepared providers submit a signed transaction once with
+  `retryCount: 0`, including an ambiguous HTTP failure.
+- The prepared SolidRPC client used the clean endpoint with `X-API-Key` and was constructed only
+  by tests.
+- Missing credential, authenticated stable-read behavior, intended-runtime deployment, direct
+  source cutover, and zero-legacy-HTTPS tests remained blocked gates.
 
-This is the expected safe outcome: an explicit replacement request does not override failed qualification gates.
+These outcomes demonstrate that the same skill interprets an ordinary “add” request as add mode
+and an explicit replacement request as replace mode without allowing the latter to bypass failed
+qualification gates.
 
-### Catalog-driven chain discovery
+## Release sample qualification tests
 
-Request: replace the provider for chain ID `999999999`, initially chosen by the test author as an assumed unsupported chain.
+The completed sample in `examples/viem-app` is deliberately stricter than a provider-name runtime
+switch:
 
-Workspace: `/private/tmp/migrate-eval-unsupported.WEz6Yy`
+- `npm run app` is hard-wired to the legacy provider.
+- `npm run rpc:compare` fetches and validates the live catalog before either RPC provider receives
+  comparison traffic.
+- `npm run rpc:qualify` performs the catalog check and authenticated stable-block/hash comparison,
+  then atomically writes ignored, non-secret evidence only on a matching result.
+- `npm run app:solidrpc` requires a credential plus unexpired evidence bound to replace mode, chain,
+  clean endpoint, catalog endpoint, comparison address, configuration fingerprint, and the
+  `viem-sample-routing-invariants-v1` release-check identifier.
+- Evidence generation never changes routing and never sends a write.
 
-Result: the assumption was disproved by the skill. The agent fetched the live catalog and found chain `999999999` as live Zora Sepolia with `standard` and `debug` families and full/archive coverage. It prepared an inactive candidate, but blocked cutover because credentials and authenticated representative probes were absent, the fixture itself was still hardcoded for chain 1, and WebSocket subscriptions were incompatible.
+The sample's 13 deterministic tests passed. They prove:
 
-Resulting diff:
+- default reads and writes are legacy-only;
+- manual comparison validates the catalog first and leaves the legacy result authoritative;
+- catalog outage, malformed data, missing chain, and missing credential stop before RPC traffic;
+- mismatch or canonical-block disagreement cannot create evidence;
+- missing, malformed, expired, wrong-chain, wrong-endpoint, wrong-mode, wrong-address, and tampered
+  routing-check evidence cannot activate replacement;
+- valid evidence allows portable reads only through SolidRPC even when the legacy endpoint is
+  unreachable; and
+- default and qualified signed transactions each reach their one active provider exactly once.
 
-- Added `.gitignore`, `SOLIDRPC_MIGRATION.md`, `src/solidrpc.ts`, and `test/solidrpc.test.ts`.
-- Updated `.env.example` and `README.md`.
-- Production source remained unchanged.
+The sample's live catalog parser was also run against `https://api.solidrpc.io/networks` at
+`2026-08-26T09:20:32.585Z`. It selected Ethereum chain 1 as `live` with `full`/`archive` and
+`standard`/`trace`/`debug`. This validates current discovery parsing only; it is not authenticated
+RPC qualification.
 
-Evidence:
+## Claude Code compatibility
 
-- `npm run typecheck`: passed.
-- `npm test`: 7/7 tests passed.
-- Live catalog response contained 57 networks and identified `999999999` dynamically.
-- No hardcoded support assumption caused an unsafe cutover.
+The release uses the same `skills/migrate-to-solidrpc/SKILL.md` and references for both hosts.
+Claude-specific packaging is limited to `.claude-plugin/plugin.json` and
+`.claude-plugin/marketplace.json`; the explicit invocation is
+`/migrate-to-solidrpc:migrate-to-solidrpc`.
 
-### Truly absent chain
+Validated with Claude Code 2.1.224:
 
-Request: replace the provider for chain ID `2147483647`.
+- `claude plugin validate --strict .`: passed.
+- `claude --plugin-dir . plugin details migrate-to-solidrpc`: discovered version 0.1.0 and exactly
+  one skill.
+- An isolated local marketplace add and install resolved `migrate-to-solidrpc@solidrpc` version
+  0.1.0.
 
-Workspace: `/private/tmp/migrate-eval-absent.bVdfqj`
+A full Claude model-driven fixture migration was attempted through `--plugin-dir`, but Claude Code
+stopped before processing the prompt because the local OAuth session was expired and no Anthropic
+API key was configured. No target-project change occurred. Therefore this release claims Claude
+Code manifest, marketplace, installation, and discovery compatibility; it does not claim a
+completed Claude model-behavior evaluation. The shared instructions themselves were independently
+exercised by the two Codex runs above.
 
-Result: safely blocked. The live catalog returned HTTP 200 with 57 networks and no matching chain. The agent made no source or routing change, added no SolidRPC candidate, requested no credential, and documented the failed coverage gate.
+## Earlier authenticated read-only probe
 
-Resulting diff:
+An owner-provided temporary credential was used before the release hardening for a sanitized,
+read-only Ethereum probe. It was inherited in memory by the probe process, sent only as an
+`X-API-Key` header to the clean endpoint, and never placed in a command line, file, URL, report, or
+repository output.
 
-- Added only `.gitignore` and `SOLIDRPC_MIGRATION.md`.
-- Production source, tests, tracked environment example, and active routes were byte-for-byte unchanged.
+At `2026-08-26T08:19:00Z`, the live catalog qualified chain 1 and an independent public existing
+provider and SolidRPC returned the same canonical block hash and balance at block `25838127`. A
+SolidRPC-only read also succeeded with the legacy URL deliberately unreachable. No transaction,
+signing request, trace/debug call, archive-depth boundary, WebSocket request, or state-changing
+method was sent.
 
-Evidence:
-
-- `npm run typecheck`: passed.
-- `npm test`: 3/3 baseline tests passed.
-- SolidRPC received zero traffic.
-- The migration record identifies catalog coverage, application chain identity, authenticated probes, exactly-once writes, and WebSocket handling as unresolved gates.
-
-## Authenticated live read probe
-
-Run time: `2026-08-26T08:19:00Z`
-
-Credential handling: an owner-supplied temporary key was read silently into an in-memory environment variable, inherited only by the probe process, unset before exit, and never placed in a command line, file, report, URL, or output. The repository was scanned afterward for API-key-shaped values and real environment files; none were found, and the working tree remained clean.
-
-The live catalog qualified Ethereum chain ID 1 as `live` with full/archive node types and `standard`, `trace`, and `debug` method families. Two read-only checks then used the sample application itself:
-
-1. **Add-mode comparison:** `RPC_PRIMARY=legacy` used `https://ethereum-rpc.publicnode.com` as an independent existing-provider route and the clean SolidRPC endpoint with `X-API-Key`. Both providers returned the same canonical block hash and the same balance at block `25838127`; the command returned `status: match` with the legacy result still authoritative.
-2. **Replace-mode read:** `RPC_PRIMARY=solidrpc` used the authenticated SolidRPC endpoint while `LEGACY_RPC_URL` deliberately pointed to unreachable `http://127.0.0.1:1`. The balance read succeeded and reported `provider: solidrpc`, demonstrating that the live replacement read did not touch the legacy route.
-
-No transaction, signing request, trace/debug call, archive-depth boundary, WebSocket request, or state-changing method was sent. The deterministic tests remain the evidence for exactly-once write routing.
+That pre-release sample used the now-removed `RPC_PRIMARY` switch. Its endpoint/authentication and
+stable-read result remains useful integration evidence, but it is not qualification evidence for
+the v0.1.0 artifact-gated replacement entrypoint. The release's durable-evidence behavior is proven
+by the deterministic tests above. Secret-pattern scans of the current tree and complete Git history
+found no API-key-shaped value.
 
 ## Repository validation
 
-The final repository was checked with:
+Release checks run locally:
 
 ```text
 python3 <skill-creator>/scripts/quick_validate.py skills/migrate-to-solidrpc
+python3 <plugin-creator>/scripts/validate_plugin.py .
+claude plugin validate --strict .
+python3 scripts/validate_release.py
 cd examples/viem-app && npm ci && npm run typecheck && npm test
 cd tests/fixtures/viem-app-before && npm ci && npm run typecheck && npm test
 git diff --check
@@ -134,23 +185,36 @@ git diff --check
 
 Outcomes:
 
-- Structural skill validation: passed.
-- Migrated sample: type checking passed; 6/6 tests passed.
-- Untouched fixture: type checking passed; 3/3 tests passed.
-- Dependency audit: zero reported vulnerabilities in both Node.js projects.
-- Tracked-file secret scan: no API-key-shaped values, credential-bearing SolidRPC URLs, or real environment files found.
-- Optional keyless public smoke: `eth_chainId` against `https://rpc.solidrpc.io/public/evm/1` returned `0x1`. This was non-gating and is not production qualification.
-- Authenticated live Ethereum read: passed through the clean endpoint with `X-API-Key`, including stable-block comparison and a SolidRPC-only replacement read.
+- Bundled skill validation: passed.
+- Bundled Codex plugin validation: passed.
+- Claude strict plugin/marketplace validation: passed.
+- Offline release metadata, path, Markdown-link, license, security, environment-file, whitespace,
+  and secret validation: passed.
+- Migrated sample: clean install, zero reported vulnerabilities, type checking, and 13/13 tests
+  passed.
+- Untouched fixture: clean install, zero reported vulnerabilities, type checking, and 3/3 tests
+  passed.
+- Working-tree and complete-history secret-pattern scans: passed without printing suspected values.
+- Local Node.js execution used 24.4.1. Both projects declare ranges compatible with Node.js 22, and
+  CI executes the same install/typecheck/test matrix on Node.js 22.
 
 ## Conclusions and limitations
 
-The independent runs demonstrate the intended fail-closed behavior across default add mode, explicit replacement, writes, WebSocket incompatibility, live-catalog discovery, absent coverage, catalog failure, and missing credentials. Default mode does not alter production routing; replacement occurs only after qualification. The subsequent authenticated live probe qualifies the tested Ethereum standard-read shape and sample routing behavior, but it does not broaden that evidence to writes or untested method families.
+The release removes the unqualified runtime cutover path, validates the live catalog in the sample
+comparison, requires durable matching evidence for the sample's SolidRPC-only entrypoint, packages
+one shared skill for Codex and Claude Code, and fails safely across the tested routing and evidence
+gates.
 
 Known limitations:
 
-- Authenticated behavior was tested only for Ethereum standard reads; no live write, trace/debug method, batch, or archive-depth boundary was exercised.
-- Deterministic mocks prove routing invariants, not production reliability or full method semantics.
-- The optional public endpoint smoke proves only a basic keyless Ethereum response.
-- The fixture exercises viem in a trusted Node.js runtime; browser-only, other-client, enhanced API, webhook, and non-EVM adaptations still require project-specific evaluation.
-- WebSocket subscriptions remain partial migrations until the application retains the legacy path deliberately or adopts a supported polling design.
-- The SolidRPC website CTAs and public/plugin distribution remain unchanged pending review.
+- Live authenticated behavior was exercised only for Ethereum standard reads before the final
+  artifact-gated redesign; no live write, trace/debug, batch, or archive-depth boundary was tested.
+- Deterministic mocks prove routing invariants, not SolidRPC availability or every JSON-RPC method
+  and parameter combination.
+- The sample check identifier is release metadata, not a cryptographic attestation that a local
+  operator ran `npm test`; CI and deployment controls must enforce project checks.
+- WebSocket subscriptions remain an explicit partial-migration boundary.
+- Browser-only clients, other RPC libraries, enhanced APIs, webhooks, and non-EVM protocols require
+  project-specific inventory and qualification.
+- A full authenticated Claude model run remains outstanding because the local Claude Code session
+  was not authenticated during release testing.

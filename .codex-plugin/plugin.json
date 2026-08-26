@@ -1,0 +1,35 @@
+{
+  "name": "migrate-to-solidrpc",
+  "version": "0.1.0",
+  "description": "Safely add SolidRPC to an EVM application or replace its current RPC provider after qualification",
+  "author": {
+    "name": "SolidRPC",
+    "url": "https://solidrpc.io"
+  },
+  "homepage": "https://github.com/SolidRPC/migrate-to-solidrpc#readme",
+  "repository": "https://github.com/SolidRPC/migrate-to-solidrpc",
+  "license": "MIT",
+  "keywords": [
+    "solidrpc",
+    "evm",
+    "json-rpc",
+    "migration",
+    "blockchain"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Migrate to SolidRPC",
+    "shortDescription": "Safely add or qualify a SolidRPC cutover",
+    "longDescription": "Inventory an EVM application's RPC usage, add a manual read-only SolidRPC comparison path by default, or qualify an explicit replacement without duplicating writes.",
+    "developerName": "SolidRPC",
+    "category": "Development",
+    "capabilities": [
+      "Write"
+    ],
+    "websiteURL": "https://solidrpc.io",
+    "defaultPrompt": [
+      "Add SolidRPC for manual read-only comparison without changing production routing.",
+      "Qualify and replace this application's portable HTTPS JSON-RPC provider with SolidRPC."
+    ]
+  }
+}

@@ -72,6 +72,7 @@ export async function startMockRpcServer(
   options: MockRpcServerOptions = {},
 ): Promise<MockRpcServer> {
   const requests: RpcRequestRecord[] = []
+  let closed = false
   const server = createServer(async (request, response) => {
     try {
       const payload = JSON.parse(await readBody(request)) as JsonRpcRequest
@@ -114,6 +115,10 @@ export async function startMockRpcServer(
     url: `http://127.0.0.1:${address.port}`,
     requests,
     close: async () => {
+      if (closed) {
+        return
+      }
+      closed = true
       server.close()
       await once(server, 'close')
     },

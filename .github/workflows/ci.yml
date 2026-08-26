@@ -4,49 +4,25 @@ on:
   push:
     branches:
       - main
+    tags:
+      - "v*"
   pull_request:
 
 permissions:
   contents: read
 
+env:
+  RELEASE_NODE_MAJOR: "22"
+
 jobs:
-  validate-skill:
+  validate-release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Validate skill structure
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-
-          root = Path("skills/migrate-to-solidrpc")
-          skill = root / "SKILL.md"
-          agent = root / "agents/openai.yaml"
-          assert skill.is_file(), "missing SKILL.md"
-          assert agent.is_file(), "missing agents/openai.yaml"
-
-          text = skill.read_text(encoding="utf-8")
-          assert text.startswith("---\n"), "SKILL.md must begin with YAML frontmatter"
-          parts = text.split("---", 2)
-          assert len(parts) == 3, "SKILL.md frontmatter is not closed"
-          frontmatter, body = parts[1], parts[2]
-          name = re.search(r"(?m)^name:\s*([^\n]+)$", frontmatter)
-          description = re.search(r"(?m)^description:\s*(.+)$", frontmatter)
-          assert name and name.group(1).strip() == "migrate-to-solidrpc", "invalid skill name"
-          assert description and description.group(1).strip().strip('"\'') not in {"", "[TODO: Briefly describe what this skill does and when it applies.]"}, "missing skill description"
-          assert body.strip(), "SKILL.md has no instructions"
-          assert "TODO" not in text, "SKILL.md still contains TODO markers"
-
-          agent_text = agent.read_text(encoding="utf-8")
-          for key in ("interface:", "display_name:", "short_description:", "default_prompt:"):
-              assert key in agent_text, f"agents/openai.yaml is missing {key}"
-          assert "$migrate-to-solidrpc" in agent_text, "default prompt must explicitly invoke the skill"
-
-          for target in re.findall(r"\[[^\]]+\]\((?!https?://)([^)#]+\.md)(?:#[^)]+)?\)", text):
-              assert (root / target).is_file(), f"missing linked reference: {target}"
-          PY
+      - name: Validate release structure, metadata, and repository files
+        run: python3 scripts/validate_release.py
+      - name: Check working-tree whitespace
+        run: git diff --check
 
   test-node-projects:
     runs-on: ubuntu-latest
@@ -63,7 +39,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version: ${{ env.RELEASE_NODE_MAJOR }}
           cache: npm
           cache-dependency-path: ${{ matrix.project }}/package-lock.json
       - run: npm ci

@@ -41,6 +41,11 @@ primary/only provider.
   legacy provider may remain active only for an inventoried incompatible feature such as
   WebSocket subscriptions or a proprietary API; label this as a partial migration.
 
+Prefer an explicit code or deployment-config cutover after qualification. If a reusable sample
+or operational workflow must keep both routes selectable, require generated, durable
+qualification evidence before SolidRPC can become active; a provider-name environment variable
+or other bare switch is never sufficient.
+
 If replace mode was requested but a gate fails, prepare safe wiring only, keep the existing
 production route active, and report the cutover as blocked. Do not quietly downgrade the
 requested mode or claim completion.
