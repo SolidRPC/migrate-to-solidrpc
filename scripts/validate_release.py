@@ -13,8 +13,21 @@ from urllib.parse import unquote, urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN_NAME = "migrate-to-solidrpc"
-RELEASE_VERSION = "0.1.1"
+RELEASE_VERSION = "0.1.2"
 REPOSITORY_URL = "https://github.com/SolidRPC/migrate-to-solidrpc"
+WEBSITE_URL = "https://solidrpc.io"
+PLUGIN_DESCRIPTION = (
+    "Move an EVM application from one or more RPC providers to one SolidRPC integration "
+    "with a safe comparison before cutover"
+)
+PLUGIN_SHORT_DESCRIPTION = "Move an EVM app to one SolidRPC integration"
+PLUGIN_LONG_DESCRIPTION = (
+    "Audit the application's RPC usage, compare supported reads with SolidRPC, and move "
+    "portable HTTPS JSON-RPC traffic to one SolidRPC integration without duplicating "
+    "transactions or breaking provider-specific routes."
+)
+BRAND_COLOR = "#7C3AED"
+ICON_PATH = "./assets/solidrpc-mark-dark.png"
 CODEX_MANIFEST = ROOT / ".codex-plugin" / "plugin.json"
 CLAUDE_MANIFEST = ROOT / ".claude-plugin" / "plugin.json"
 CODEX_MARKETPLACE = ROOT / ".agents" / "plugins" / "marketplace.json"
@@ -208,6 +221,10 @@ def require_manifest_basics(
         f"{label} version must use strict semantic versioning",
     )
     validation.check(is_non_empty_string(manifest.get("description")), f"{label} needs a description")
+    validation.check(
+        manifest.get("description") == PLUGIN_DESCRIPTION,
+        f"{label} description must match the public migration description",
+    )
     author = manifest.get("author")
     validation.check(
         isinstance(author, dict) and is_non_empty_string(author.get("name")),
@@ -218,6 +235,7 @@ def require_manifest_basics(
         normalized_repository(manifest.get("repository")) == REPOSITORY_URL,
         f"{label} repository must be {REPOSITORY_URL}",
     )
+    validation.check(manifest.get("homepage") == WEBSITE_URL, f"{label} homepage must be {WEBSITE_URL}")
 
 
 def reject_unknown_fields(
@@ -269,6 +287,27 @@ def validate_codex_manifest(manifest: dict[str, Any], validation: Validation) ->
             and all(is_non_empty_string(item) for item in interface["capabilities"]),
             "Codex manifest interface.capabilities must be an array of non-empty strings",
         )
+        validation.check(
+            interface.get("shortDescription") == PLUGIN_SHORT_DESCRIPTION,
+            "Codex manifest interface.shortDescription must match the public card copy",
+        )
+        validation.check(
+            interface.get("longDescription") == PLUGIN_LONG_DESCRIPTION,
+            "Codex manifest interface.longDescription must match the public detail copy",
+        )
+        validation.check(
+            interface.get("websiteURL") == WEBSITE_URL,
+            f"Codex manifest interface.websiteURL must be {WEBSITE_URL}",
+        )
+        validation.check(
+            interface.get("brandColor") == BRAND_COLOR,
+            f"Codex manifest interface.brandColor must be {BRAND_COLOR}",
+        )
+        for icon_field in ("composerIcon", "logo", "logoDark"):
+            validation.check(
+                interface.get(icon_field) == ICON_PATH,
+                f"Codex manifest interface.{icon_field} must be {ICON_PATH}",
+            )
         prompt = interface.get("defaultPrompt", interface.get("default_prompt"))
         prompt_valid = is_non_empty_string(prompt) or (
             isinstance(prompt, list)
@@ -345,11 +384,7 @@ def validate_codex_marketplace(marketplace: dict[str, Any], validation: Validati
     validation.check(is_non_empty_string(marketplace.get("name")), "Codex marketplace needs a name")
     entry = find_plugin_entry(marketplace, "Codex marketplace", validation)
     source = entry.get("source")
-    expected_source = {
-        "source": "url",
-        "url": f"{REPOSITORY_URL}.git",
-        "ref": f"v{RELEASE_VERSION}",
-    }
+    expected_source = {"source": "local", "path": "./"}
     validation.check(source == expected_source, f"Codex marketplace source must be {expected_source}")
     policy = entry.get("policy")
     validation.check(

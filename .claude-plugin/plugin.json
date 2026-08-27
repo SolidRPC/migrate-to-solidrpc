@@ -1,13 +1,13 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin.json",
   "name": "migrate-to-solidrpc",
-  "version": "0.1.1",
-  "description": "Safely add SolidRPC to an EVM application or replace its current RPC provider after qualification",
+  "version": "0.1.2",
+  "description": "Move an EVM application from one or more RPC providers to one SolidRPC integration with a safe comparison before cutover",
   "author": {
     "name": "SolidRPC",
     "url": "https://solidrpc.io"
   },
-  "homepage": "https://github.com/SolidRPC/migrate-to-solidrpc#readme",
+  "homepage": "https://solidrpc.io",
   "repository": "https://github.com/SolidRPC/migrate-to-solidrpc",
   "license": "MIT",
   "keywords": [
