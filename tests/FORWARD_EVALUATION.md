@@ -1,8 +1,8 @@
 # Forward evaluation report
 
-Release: `v0.1.1`
+Release: `v0.1.2`
 
-Date: 2026-08-26
+Date: 2026-08-27
 
 This report records independent skill runs, deterministic sample tests, authenticated read-only
 qualification, and Codex/Claude plugin checks for `migrate-to-solidrpc`. Credentials are never
@@ -135,7 +135,7 @@ separately approved and account-verified evidence before adapting the gate.
 
 ## Authenticated final-flow probe
 
-An owner-provided temporary credential exercised the final v0.1.1 entrypoints. The key was read
+An owner-provided temporary credential exercised the runtime entrypoints retained in v0.1.2. The key was read
 without terminal echo into a short-lived process environment, sent only through `X-API-Key` to the
 clean endpoint, and never placed in a command line, file, URL, report, or repository output.
 
@@ -158,6 +158,24 @@ Those illustrative inputs are not a production traffic measurement. The live run
 that sample invocation, not another application, a production workload, or transaction
 submission. An API-key-pattern scan of the ignored evidence file passed.
 
+## Codex package and details metadata
+
+Validated with Codex CLI 0.149.0-alpha.4:
+
+- adding the repository as a marketplace resolved `migrate-to-solidrpc@solidrpc` from the local
+  marketplace checkout at version 0.1.2 rather than as a second cross-repository source;
+- the plugin installed successfully from that marketplace and was then removed together with the
+  temporary marketplace registration;
+- the installed package retained the public description, `https://solidrpc.io` website,
+  `#7C3AED` brand color, and all three icon references; and
+- the installed SolidRPC logo existed in the plugin cache and its SHA-256 matched the owner-supplied
+  source asset.
+
+The current Codex loader reads full manifest and asset metadata for local marketplace sources. Its
+remote materialized-source fallback intentionally omits logo paths, which caused the generic icon
+and cross-repository text in the earlier details view. The local source is therefore a functional
+packaging correction, not only a copy change.
+
 ## Claude Code compatibility
 
 The Codex and Claude packages share the same `SKILL.md` and references. Claude-specific files are
@@ -167,10 +185,10 @@ is `/migrate-to-solidrpc:migrate-to-solidrpc`.
 Validated with Claude Code 2.1.224:
 
 - `claude plugin validate --strict .`: passed.
-- `claude --plugin-dir . plugin details migrate-to-solidrpc`: discovered version 0.1.1 and exactly
+- `claude --plugin-dir . plugin details migrate-to-solidrpc`: discovered version 0.1.2 and exactly
   one skill.
 - An isolated local marketplace add/install resolved enabled
-  `migrate-to-solidrpc@solidrpc` version 0.1.1.
+  `migrate-to-solidrpc@solidrpc` version 0.1.2.
 
 A full model-driven fixture run was attempted through the plugin. Claude Code stopped before
 processing the prompt because its local OAuth session was expired and no Anthropic API key was
@@ -195,8 +213,10 @@ git diff --check
 Outcomes:
 
 - Bundled skill and Codex plugin validation passed.
+- A clean Codex marketplace add, pre-install resolution, install, package-asset inspection, plugin
+  removal, and marketplace removal passed at version 0.1.2.
 - Claude strict manifest/marketplace validation and isolated local installation passed.
-- Release metadata, matching 0.1.1 versions, tag-name binding, Markdown links, license, security,
+- Release metadata, matching 0.1.2 versions, tag-name binding, Markdown links, license, security,
   environment files, whitespace, and secret rules passed.
 - The sample passed a clean install, zero audit vulnerabilities, type checking, and 39/39 tests.
 - The untouched fixture passed a clean install, zero audit vulnerabilities, type checking, and
@@ -208,12 +228,13 @@ Outcomes:
 
 ## Conclusions and limitations
 
-Version 0.1.1 adds the missing fail-closed capacity gate, runtime limit/error semantics, constrained
+Version 0.1.2 preserves the fail-closed capacity gate, runtime limit/error semantics, constrained
 Bearer compatibility, authenticated evidence integrity, JWT-bounded expiry, and capacity-bound
-evidence while preserving default-mode isolation and exactly-once writes. The sample explicitly
-models partial read replacement: its live-qualified read route is SolidRPC-only, while its
-unqualified transaction route remains legacy. The final authenticated sample flow removes reliance
-on the superseded pre-hardening runtime-switch probe.
+evidence while fixing the install surface: Codex now reads the local manifest, SolidRPC icon,
+website, and migration description before installation. The sample explicitly models partial read
+replacement: its live-qualified read route is SolidRPC-only, while its unqualified transaction
+route remains legacy. The final authenticated sample flow removes reliance on the superseded
+pre-hardening runtime-switch probe.
 
 Known limitations:
 

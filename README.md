@@ -1,10 +1,10 @@
 # Migrate to SolidRPC
 
-`migrate-to-solidrpc` is an agent skill for safely adding SolidRPC to an EVM
-application or replacing its current RPC provider after qualification. It inventories the
-application first, preserves the existing client library, verifies coverage against the live
-SolidRPC catalog, qualifies the real workload against authenticated runtime limits, and leaves a
-durable `SOLIDRPC_MIGRATION.md` in the migrated project.
+`migrate-to-solidrpc` moves an EVM application from one or more RPC-provider integrations to one
+SolidRPC integration. It inventories the application, preserves its client library, creates a
+deliberate read-only comparison path, and cuts compatible HTTPS JSON-RPC traffic over only after
+coverage, authentication, and workload fit have been verified. Transactions are never duplicated,
+and incompatible routes remain explicit.
 
 The repository is packaged as a skills-only plugin for Codex, ChatGPT environments that support
 OpenAI plugins, and Claude Code. The migration instructions themselves live in
@@ -36,6 +36,14 @@ headroom. Effective limits come from authenticated `X-RateLimit-*` and `X-Quota-
 headers, not a hardcoded plan table. If that evidence is missing or insufficient, replacement
 stays inactive.
 
+This is what the release previously summarized as requiring “durable catalog, method, credential,
+and capacity evidence.” In plain language, one successful request is not enough to redirect
+production. Replace mode saves reproducible results showing that the current catalog covers the
+application's chains and method families, the intended credential works, representative reads
+agree at stable blocks, and the measured workload fits the account's live limits. The record
+survives the agent session in `SOLIDRPC_MIGRATION.md`; it is a technical safety gate, not a contact
+or manual-approval requirement. Default add mode remains available without a production cutover.
+
 ## Requirements
 
 - An EVM application whose repository the agent can inspect, edit, and test.
@@ -60,7 +68,7 @@ string-only clients. Configure exactly one API-key transport.
 Install the tagged marketplace and plugin from GitHub:
 
 ```bash
-codex plugin marketplace add SolidRPC/migrate-to-solidrpc --ref v0.1.1
+codex plugin marketplace add SolidRPC/migrate-to-solidrpc --ref v0.1.2
 codex plugin add migrate-to-solidrpc@solidrpc
 ```
 
@@ -117,7 +125,7 @@ Claude Code checkout, run:
 claude --plugin-dir /path/to/migrate-to-solidrpc
 ```
 
-Use a checkout of the `v0.1.1` tag when you need a reproducible installation. Other Agent Skills
+Use a checkout of the `v0.1.2` tag when you need a reproducible installation. Other Agent Skills
 hosts may understand the core `SKILL.md`, but they are not claimed as supported until evaluated.
 
 ## Validation
@@ -154,10 +162,11 @@ an issue, pull request, discussion, migration record, or test fixture.
 
 Current release validation covers deterministic routing, capacity, error classification,
 credential-transport, and qualification-evidence behavior. Evidence is HMAC-protected by the
-current API key and, when a customer JWT is used, expires before its `exp` claim. The final v0.1.1
-sample also completed an authenticated Ethereum catalog, capacity-header, stable-read,
-durable-evidence, and SolidRPC-only read flow with a temporary credential. That narrow run qualifies the sample
-configuration used for the test; it is not reusable evidence for another application or workload.
+current API key and, when a customer JWT is used, expires before its `exp` claim. The runtime
+included in v0.1.2 completed an authenticated Ethereum catalog, capacity-header, stable-read,
+qualification-evidence, and SolidRPC-only read flow with a temporary credential. That narrow run
+qualifies the sample configuration used for the test; it is not reusable evidence for another
+application or workload.
 No test qualifies live transaction submission, every trace/debug method, all archive-depth
 boundaries, browser-only clients, enhanced APIs, webhooks, or WebSocket subscriptions. Mocks prove
 routing invariants rather than production reliability.

@@ -1,12 +1,12 @@
 {
   "name": "migrate-to-solidrpc",
-  "version": "0.1.1",
-  "description": "Safely add SolidRPC to an EVM application or replace its current RPC provider after qualification",
+  "version": "0.1.2",
+  "description": "Move an EVM application from one or more RPC providers to one SolidRPC integration with a safe comparison before cutover",
   "author": {
     "name": "SolidRPC",
     "url": "https://solidrpc.io"
   },
-  "homepage": "https://github.com/SolidRPC/migrate-to-solidrpc#readme",
+  "homepage": "https://solidrpc.io",
   "repository": "https://github.com/SolidRPC/migrate-to-solidrpc",
   "license": "MIT",
   "keywords": [
@@ -19,14 +19,18 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Migrate to SolidRPC",
-    "shortDescription": "Safely add or qualify a SolidRPC cutover",
-    "longDescription": "Inventory an EVM application's RPC usage, add a manual read-only SolidRPC comparison path by default, or qualify an explicit replacement without duplicating writes.",
+    "shortDescription": "Move an EVM app to one SolidRPC integration",
+    "longDescription": "Audit the application's RPC usage, compare supported reads with SolidRPC, and move portable HTTPS JSON-RPC traffic to one SolidRPC integration without duplicating transactions or breaking provider-specific routes.",
     "developerName": "SolidRPC",
     "category": "Development",
     "capabilities": [
       "Write"
     ],
     "websiteURL": "https://solidrpc.io",
+    "brandColor": "#7C3AED",
+    "composerIcon": "./assets/solidrpc-mark-dark.png",
+    "logo": "./assets/solidrpc-mark-dark.png",
+    "logoDark": "./assets/solidrpc-mark-dark.png",
     "defaultPrompt": [
       "Add SolidRPC for manual read-only comparison without changing production routing.",
       "Qualify and replace this application's portable HTTPS JSON-RPC provider with SolidRPC."

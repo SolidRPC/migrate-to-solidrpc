@@ -6,18 +6,18 @@
   },
   "metadata": {
     "description": "Official SolidRPC migration skills",
-    "version": "0.1.1"
+    "version": "0.1.2"
   },
   "plugins": [
     {
       "name": "migrate-to-solidrpc",
       "source": "./",
-      "description": "Safely add SolidRPC to an EVM application or replace its current RPC provider after qualification",
-      "version": "0.1.1",
+      "description": "Move an EVM application from one or more RPC providers to one SolidRPC integration with a safe comparison before cutover",
+      "version": "0.1.2",
       "author": {
         "name": "SolidRPC"
       },
-      "homepage": "https://github.com/SolidRPC/migrate-to-solidrpc#readme",
+      "homepage": "https://solidrpc.io",
       "repository": "https://github.com/SolidRPC/migrate-to-solidrpc",
       "license": "MIT",
       "category": "development",

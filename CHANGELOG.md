@@ -2,6 +2,17 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.2] - 2026-08-27
+
+### Changed
+
+- The Codex marketplace now resolves the plugin locally from its tagged checkout, allowing the
+  pre-install details page to load the real manifest instead of cross-repository fallback text.
+- Added the SolidRPC icon, brand color, website, and clearer migration-focused card and detail
+  descriptions.
+- Kept the existing migration behavior, qualification gates, sample runtime, and Claude Code
+  package unchanged apart from synchronized release metadata.
+
 ## [0.1.1] - 2026-08-26
 
 ### Added
@@ -44,3 +55,4 @@ All notable changes to this project are documented in this file.
 
 [0.1.0]: https://github.com/SolidRPC/migrate-to-solidrpc/releases/tag/v0.1.0
 [0.1.1]: https://github.com/SolidRPC/migrate-to-solidrpc/releases/tag/v0.1.1
+[0.1.2]: https://github.com/SolidRPC/migrate-to-solidrpc/releases/tag/v0.1.2
