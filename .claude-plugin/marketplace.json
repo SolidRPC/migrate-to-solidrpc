@@ -5,15 +5,15 @@
     "name": "SolidRPC"
   },
   "metadata": {
-    "description": "Official SolidRPC migration skills",
-    "version": "0.1.2"
+    "description": "Guided migration to one SolidRPC integration",
+    "version": "0.1.3"
   },
   "plugins": [
     {
       "name": "migrate-to-solidrpc",
       "source": "./",
-      "description": "Move an EVM application from one or more RPC providers to one SolidRPC integration with a safe comparison before cutover",
-      "version": "0.1.2",
+      "description": "Replace compatible EVM RPC traffic with one SolidRPC integration through a guided, tested repository change.",
+      "version": "0.1.3",
       "author": {
         "name": "SolidRPC"
       },

@@ -13,19 +13,24 @@ from urllib.parse import unquote, urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN_NAME = "migrate-to-solidrpc"
-RELEASE_VERSION = "0.1.2"
+RELEASE_VERSION = "0.1.3"
 REPOSITORY_URL = "https://github.com/SolidRPC/migrate-to-solidrpc"
 WEBSITE_URL = "https://solidrpc.io"
 PLUGIN_DESCRIPTION = (
-    "Move an EVM application from one or more RPC providers to one SolidRPC integration "
-    "with a safe comparison before cutover"
+    "Replace compatible EVM RPC traffic with one SolidRPC integration through a guided, "
+    "tested repository change."
 )
-PLUGIN_SHORT_DESCRIPTION = "Move an EVM app to one SolidRPC integration"
+PLUGIN_SHORT_DESCRIPTION = "Replace EVM RPC with one SolidRPC integration"
 PLUGIN_LONG_DESCRIPTION = (
-    "Audit the application's RPC usage, compare supported reads with SolidRPC, and move "
-    "portable HTTPS JSON-RPC traffic to one SolidRPC integration without duplicating "
-    "transactions or breaking provider-specific routes."
+    "Inspect the repository, replace compatible HTTPS JSON-RPC traffic with one SolidRPC "
+    "integration, run the project's checks, and present the direct diff and Git rollback "
+    "steps. Incompatible WebSocket, subscription, webhook, browser-credential, and "
+    "provider-specific paths remain explicit."
 )
+PLUGIN_DEFAULT_PROMPT = [
+    "Migrate compatible HTTPS JSON-RPC to SolidRPC. Make the local change, run checks, and "
+    "show the diff and Git rollback steps."
+]
 BRAND_COLOR = "#7C3AED"
 ICON_PATH = "./assets/solidrpc-mark-dark.png"
 CODEX_MANIFEST = ROOT / ".codex-plugin" / "plugin.json"
@@ -315,6 +320,11 @@ def validate_codex_manifest(manifest: dict[str, Any], validation: Validation) ->
             and all(is_non_empty_string(item) and len(item) <= 128 for item in prompt)
         )
         validation.check(prompt_valid, "Codex manifest needs a valid default prompt")
+        validation.check(
+            prompt == PLUGIN_DEFAULT_PROMPT,
+            "Codex manifest default prompt must describe one guided migration, checks, diff, "
+            "and Git rollback",
+        )
     validate_manifest_paths(manifest, CODEX_MANIFEST, validation)
 
 
@@ -546,17 +556,6 @@ def validate_reachable_history(validation: Validation) -> None:
 
 def validate_public_version_references(validation: Validation) -> None:
     current_tag = f"v{RELEASE_VERSION}"
-    for relative in (Path("README.md"), Path("tests/FORWARD_EVALUATION.md")):
-        text = read_text(ROOT / relative)
-        if text is None:
-            validation.errors.append(f"cannot read {relative} for version validation")
-            continue
-        versions = set(re.findall(r"\bv\d+\.\d+\.\d+\b", text))
-        validation.check(
-            versions == {current_tag},
-            f"{relative} public version references must all be {current_tag}",
-        )
-
     changelog = read_text(ROOT / "CHANGELOG.md")
     if changelog is None:
         validation.errors.append("cannot read CHANGELOG.md for version validation")
@@ -567,9 +566,36 @@ def validate_public_version_references(validation: Validation) -> None:
         f"CHANGELOG.md latest heading must be {RELEASE_VERSION}",
     )
     validation.check(
+        len(headings) == len(set(headings))
+        and all(SEMVER.fullmatch(version) is not None for version in headings),
+        "CHANGELOG.md release headings must be unique semantic versions",
+    )
+    validation.check(
         f"[{RELEASE_VERSION}]: {REPOSITORY_URL}/releases/tag/{current_tag}" in changelog,
         f"CHANGELOG.md must link release {current_tag}",
     )
+
+    known_release_versions = set(headings)
+    version_token = re.compile(
+        r"(?<![A-Za-z0-9.])(?P<prefix>v)?(?P<version>\d+\.\d+\.\d+)"
+        r"(?![A-Za-z0-9.])"
+    )
+    for relative in (Path("README.md"), Path("tests/FORWARD_EVALUATION.md")):
+        text = read_text(ROOT / relative)
+        if text is None:
+            validation.errors.append(f"cannot read {relative} for version validation")
+            continue
+        versions = {
+            match.group("version")
+            for match in version_token.finditer(text)
+            if match.group("prefix") is not None
+            or match.group("version") in known_release_versions
+        }
+        validation.check(
+            versions == {RELEASE_VERSION},
+            f"{relative} public release version references must all be {current_tag} or "
+            f"{RELEASE_VERSION}; found {sorted(versions) or ['none']}",
+        )
 
 
 def validate_markdown_links(validation: Validation) -> None:

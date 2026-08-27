@@ -1,141 +1,149 @@
 # Migrate to SolidRPC
 
-`migrate-to-solidrpc` moves an EVM application from one or more RPC-provider integrations to one
-SolidRPC integration. It inventories the application, preserves its client library, creates a
-deliberate read-only comparison path, and cuts compatible HTTPS JSON-RPC traffic over only after
-coverage, authentication, and workload fit have been verified. Transactions are never duplicated,
-and incompatible routes remain explicit.
+`migrate-to-solidrpc` turns one migration request into a direct, reviewed repository change.
+It inspects an EVM application's RPC usage, qualifies the routes that can move, replaces
+compatible HTTPS JSON-RPC traffic with one SolidRPC integration, runs the project's checks, and
+shows the Git diff and rollback steps. It does not deploy the change.
 
-The repository is packaged as a skills-only plugin for Codex, ChatGPT environments that support
-OpenAI plugins, and Claude Code. The migration instructions themselves live in
+After a completed migration, SolidRPC is the only active provider for compatible traffic.
+SolidRPC owns upstream diversity, routing, failover, monitoring, and recovery; the application
+does not maintain its own HTTP provider fallback pool.
+
+The repository packages the same skill for Codex and Claude Code. The instructions live in
 [`skills/migrate-to-solidrpc`](skills/migrate-to-solidrpc).
 
-| Host | Package entry point | Explicit invocation | Release evidence |
-| --- | --- | --- | --- |
-| Codex CLI and desktop | `.codex-plugin/plugin.json` | `$migrate-to-solidrpc` | Structural plugin validation and independent skill runs tested; tagged install is verified at release |
-| Claude Code | `.claude-plugin/plugin.json` | `/migrate-to-solidrpc:migrate-to-solidrpc` | Strict manifest, marketplace install, and discovery tested; full model-driven evaluation remains noted below |
-| ChatGPT environments with custom OpenAI-plugin support | `.codex-plugin/plugin.json` | Select the installed skill | Package-compatible; availability and policy vary by workspace and client |
-| Other Agent Skills hosts | `skills/migrate-to-solidrpc/SKILL.md` | Host-specific | Core instructions are portable, but unlisted hosts are not release-qualified |
+## One guided migration
 
-## Migration modes
+Give the installed skill a normal migration request. It will:
 
-| Mode | Activation | Routing outcome |
-| --- | --- | --- |
-| Add | Default | Existing production routing is unchanged. SolidRPC is available only through an explicit, manual, read-only comparison path. |
-| Replace | Must be requested explicitly | After all qualification gates pass, SolidRPC becomes the sole active route for portable HTTPS JSON-RPC traffic. The old route stays inactive for rollback and may remain active only for an incompatible feature. |
+1. Find provider construction, networks, methods, writes, historical requirements, retries,
+   transports, runtime boundaries, secret references, monitoring, and project checks.
+2. Infer whether the application is a prototype or serves production traffic. If the repository
+   does not make that clear, it asks one concise classification question.
+3. Qualify live network and method coverage, authenticated access, safe read-only behavior, and
+   the applicable capacity path.
+4. Edit the real client or deployment configuration directly. It does not add an Add/Replace
+   chooser, provider selector, automatic fallback, or production shadow route.
+5. Run the project's tests, type checks, lint, and build checks plus focused routing tests.
+6. Return a concise, secret-free summary, the Git diff, and Git rollback instructions.
 
-Both modes fetch `https://api.solidrpc.io/networks` rather than relying on a hardcoded network
-list. Comparisons use a stable block number or hash, and transactions, signing requests, unknown
-methods, and state-changing calls are never shadowed. WebSockets, `eth_subscribe`, webhooks, and
-provider-specific APIs are retained and reported as a partial migration when they are not
-portable.
+The skill never commits, pushes, or deploys the target application unless the user separately
+requests that action. The normal rollback is a Git reversal followed by the application's usual
+deployment process.
 
-Replacement also requires capacity evidence for the target application's largest batch, expanded
-method-call rate, quota-window demand, shared traffic, retry amplification, and deliberate
-headroom. Effective limits come from authenticated `X-RateLimit-*` and `X-Quota-*` response
-headers, not a hardcoded plan table. If that evidence is missing or insufficient, replacement
-stays inactive.
+## Qualification behavior
 
-This is what the release previously summarized as requiring “durable catalog, method, credential,
-and capacity evidence.” In plain language, one successful request is not enough to redirect
-production. Replace mode saves reproducible results showing that the current catalog covers the
-application's chains and method families, the intended credential works, representative reads
-agree at stable blocks, and the measured workload fits the account's live limits. The record
-survives the agent session in `SOLIDRPC_MIGRATION.md`; it is a technical safety gate, not a contact
-or manual-approval requirement. Default add mode remains available without a production cutover.
+### Prototype fast path
 
-## Requirements
+A prototype or application with no production traffic does not need historical telemetry,
+measured peaks, or a production traffic profile. Migration can complete when:
 
-- An EVM application whose repository the agent can inspect, edit, and test.
-- Network access to `https://api.solidrpc.io/networks` during qualification.
-- A SolidRPC API key exposed through the target project's secret mechanism for authenticated
-  qualification and replacement. The skill defaults to `SOLIDRPC_API_KEY` only when the project
-  has no established convention.
-- A measured traffic profile covering the largest valid-method batch, sustained and peak RPC
-  method calls per second, projected response units per quota window, shared-account traffic, and
-  retry amplification.
-- Representative tests or safe read-only probes for every route being cut over.
+- the intended trusted runtime has authenticated SolidRPC access;
+- the live catalogue supports the required networks, method families, and historical depth;
+- minimal read-only smoke tests pass;
+- the project's tests and build pass; and
+- no explicit repository setting exceeds the current account's available limits.
 
-Do not paste an API key into an agent prompt. Put it in an ignored environment file, CI secret, or
-secret manager. Trusted server-side clients should prefer `X-API-Key` with the clean endpoint
-`https://rpc.solidrpc.io/evm/{chainId}`. Bearer API-key authentication is a fallback only when a
-client can set `Authorization` but cannot set `X-API-Key`; do not use it when that header already
-carries another credential or a customer JWT is required. URL authentication is reserved for
-string-only clients. Configure exactly one API-key transport.
+The result shows the applicable non-secret limits and states that production capacity has not yet
+been proven. That is advisory unless an explicit batch, concurrency, polling, or request-budget
+setting clearly exceeds a limit.
+
+### Production applications
+
+For production applications, the skill first searches existing monitoring, configuration, logs,
+infrastructure, provider metrics, load tests, and billing data. It may need peak and sustained
+batch-expanded request rate, quota-window usage, shared-account traffic, retry amplification,
+largest batch, required networks and methods, historical depth, and timeout behavior.
+
+If required facts remain missing, the skill asks one consolidated question containing every
+missing item. It may prepare a useful local diff for review, but marks production cutover as
+blocked and leaves external and production state unchanged until all applicable gates pass.
+
+## Routing and safety
+
+- Compatible HTTPS reads and qualified writes use one SolidRPC route.
+- Transactions and other state-changing calls are sent exactly once. They are never compared,
+  mirrored, hedged, or retried through another provider after an ambiguous response.
+- Production traffic is not shadowed by default.
+- WebSockets, subscriptions, webhooks, browser-held credentials, and provider-specific APIs stay
+  behind explicit named boundaries when they are incompatible. They are remaining migration
+  decisions, not fallback for a failed SolidRPC request.
+- The default workflow creates no runtime qualification artifact, HMAC/startup gate, provider
+  switch, or persistent migration report.
+
+Never paste an API key into an agent prompt. Give the skill only the environment-variable or
+secret-manager reference name. Trusted server clients should prefer `X-API-Key` with
+`https://rpc.solidrpc.io/evm/{chainId}`. The skill preserves the project's existing secret
+mechanism and never reads, prints, persists, or commits the secret value.
 
 ## Install with Codex
 
-Install the tagged marketplace and plugin from GitHub:
+Install the exact release from the GitHub marketplace:
 
 ```bash
-codex plugin marketplace add SolidRPC/migrate-to-solidrpc --ref v0.1.2
+codex plugin marketplace add SolidRPC/migrate-to-solidrpc --ref v0.1.3
 codex plugin add migrate-to-solidrpc@solidrpc
 ```
 
-Start a new Codex task after installation. Invoke the skill explicitly when you want deterministic
-mode selection:
+Start a new Codex task and ask:
 
 ```text
-Use $migrate-to-solidrpc to add SolidRPC to this application.
+Use $migrate-to-solidrpc to migrate this application's compatible RPC traffic to SolidRPC.
 ```
 
-```text
-Use $migrate-to-solidrpc in replace mode and make SolidRPC the only provider for compatible HTTPS JSON-RPC traffic.
-```
-
-The skill also has discovery metadata, so Codex can select it for a clearly matching migration
-request.
+Implicit discovery remains enabled, so a clear request such as “migrate this app from its current
+RPC provider to SolidRPC” can also load the skill. See the
+[OpenAI plugin documentation](https://developers.openai.com/codex/build-plugins) for the plugin
+package model.
 
 ## Install with Claude Code
 
-Add the GitHub marketplace and install the plugin:
+Claude Code accepts a pinned GitHub marketplace reference:
 
 ```bash
-claude plugin marketplace add SolidRPC/migrate-to-solidrpc
+claude plugin marketplace add SolidRPC/migrate-to-solidrpc@v0.1.3
 claude plugin install migrate-to-solidrpc@solidrpc
 ```
 
-Restart Claude Code after installation. Invoke the namespaced skill explicitly with:
+Restart Claude Code, then invoke the namespaced skill:
 
 ```text
 /migrate-to-solidrpc:migrate-to-solidrpc
+Migrate this application's compatible RPC traffic to SolidRPC.
 ```
 
-Then state either that SolidRPC should be added for comparison or explicitly request replacement.
-Claude Code reads the same `SKILL.md` and references as Codex; only the plugin manifest,
-installation command, and explicit invocation syntax differ.
+The tag is part of the marketplace source command, so this installs the pinned release rather
+than an unpinned latest checkout. See the
+[Claude Code marketplace documentation](https://code.claude.com/docs/en/plugin-marketplaces).
 
-## ChatGPT and OpenAI distribution
+## Compatibility
 
-The repository includes an OpenAI plugin manifest and a standard skill directory. It is suitable
-for ChatGPT environments that support installing custom OpenAI plugins, but this release is tested
-through Codex rather than every ChatGPT client or workspace configuration. The Codex CLI commands
-above are not ChatGPT installation commands.
+| Host | Package | Invocation | Release verification |
+| --- | --- | --- | --- |
+| Codex CLI and desktop | `.codex-plugin/plugin.json` | `$migrate-to-solidrpc` or implicit discovery | Local package installation, discovery, structural validation, and model-driven evaluation are recorded in the release evaluation; the published tag is verified at release time. |
+| Claude Code | `.claude-plugin/plugin.json` | `/migrate-to-solidrpc:migrate-to-solidrpc` | Local marketplace installation, strict validation, and skill discovery are recorded in the release evaluation; the published tag is verified at release time. |
+| Other Agent Skills hosts | `skills/migrate-to-solidrpc/SKILL.md` | Host-specific | The core instructions are portable, but unlisted hosts are not release-qualified. |
 
-Publishing this GitHub repository does not list the plugin in OpenAI's universal plugin directory.
-Directory submission, review, and any ChatGPT workspace rollout are separate release steps.
+The GitHub repository is not automatically listed in OpenAI's universal plugin directory.
+Directory submission and workspace rollout are separate distribution steps.
 
-## Standalone and local testing
+## viem example
 
-The plugin wrapper is optional. To make the skill project-local in Codex, copy
-`skills/migrate-to-solidrpc` into the target repository's `.agents/skills/` directory. For a local
-Claude Code checkout, run:
+[`examples/viem-app`](examples/viem-app) is the canonical post-migration state:
 
-```bash
-claude --plugin-dir /path/to/migrate-to-solidrpc
-```
+- one fixed SolidRPC HTTPS transport for compatible reads and writes;
+- no legacy HTTP provider, runtime selector, or automatic fallback in the default app;
+- a manual `npm run rpc:smoke` command for authenticated read-only catalogue, chain, and current
+  limit checks;
+- explicit WebSocket and provider-specific boundaries; and
+- deterministic routing, safety, prototype, production-policy, secret-output, and advanced-route
+  tests on ephemeral local servers.
 
-Use a checkout of the `v0.1.2` tag when you need a reproducible installation. Other Agent Skills
-hosts may understand the core `SKILL.md`, but they are not claimed as supported until evaluated.
+The advanced selectable-route example is isolated from the default app. It exists only to prove
+that expired or invalid evidence can disable the SolidRPC candidate without disabling the legacy
+rollback route or causing a total outage.
 
-## Validation
-
-CI performs structural validation of the skill and both plugin packages, checks release metadata,
-and runs installation, type checking, and deterministic tests for the sample and baseline fixture.
-The forward-evaluation evidence, including authenticated read-only probes and known limitations, is
-recorded in [`tests/FORWARD_EVALUATION.md`](tests/FORWARD_EVALUATION.md).
-
-Run the Node.js checks locally with Node.js 22:
+Run the example and untouched pre-migration fixture checks with Node.js 22 or newer:
 
 ```bash
 cd tests/fixtures/viem-app-before
@@ -149,30 +157,28 @@ npm run typecheck
 npm test
 ```
 
-The completed viem example is illustrative and deliberately demonstrates partial read replacement:
-qualified reads use SolidRPC only, while signed transaction submission stays on the legacy route
-until separate write-scope and account-policy evidence exists. Full replacement must be qualified
-for the target application, chain, method families, historical depth, authentication scopes, and
-runtime boundaries; evidence from one project must not be reused as a universal cutover token.
+Release validation also runs the bundled skill and plugin validators, Claude Code strict
+validation, metadata and secret scans, and `git diff --check`. Actual host and forward-evaluation
+results are recorded in [`tests/FORWARD_EVALUATION.md`](tests/FORWARD_EVALUATION.md).
+
+## Advanced dual route
+
+A runtime-selectable dual route is not part of the normal migration. If explicitly requested,
+the skill can use signed, environment-specific qualification evidence to enable a SolidRPC
+candidate. Missing, edited, expired, or invalid evidence disables only that candidate; the
+existing rollback route remains operational. Individual SolidRPC failures still do not trigger
+per-request fallback.
 
 ## Security and limitations
 
-Read [`SECURITY.md`](SECURITY.md) before reporting a vulnerability. Never include credentials in
-an issue, pull request, discussion, migration record, or test fixture.
+Read [`SECURITY.md`](SECURITY.md) before reporting a vulnerability. Do not include credentials,
+private endpoints, signed transactions, or customer data in issues, diffs, test fixtures, or
+reports.
 
-Current release validation covers deterministic routing, capacity, error classification,
-credential-transport, and qualification-evidence behavior. Evidence is HMAC-protected by the
-current API key and, when a customer JWT is used, expires before its `exp` claim. The runtime
-included in v0.1.2 completed an authenticated Ethereum catalog, capacity-header, stable-read,
-qualification-evidence, and SolidRPC-only read flow with a temporary credential. That narrow run
-qualifies the sample configuration used for the test; it is not reusable evidence for another
-application or workload.
-No test qualifies live transaction submission, every trace/debug method, all archive-depth
-boundaries, browser-only clients, enhanced APIs, webhooks, or WebSocket subscriptions. Mocks prove
-routing invariants rather than production reliability.
-
-The SolidRPC website and migration CTAs are maintained outside this repository. Website changes
-remain a separately reviewed and deployed release even when they point to this tagged plugin.
+Deterministic mocks prove routing and decision invariants, not live service availability or
+production capacity. Every application still requires current catalogue coverage, authenticated
+access, representative method checks, and the qualification path appropriate to its traffic.
+Live host behavior not exercised end to end is called out explicitly in the release evaluation.
 
 ## License
 

@@ -1,166 +1,133 @@
 import type { Address, Hash, Hex } from 'viem'
 
-export type RpcProvider = 'legacy' | 'solidrpc'
-
-export type SolidRpcApiKeyTransport = 'x-api-key' | 'bearer'
-
-export type QuotaWindow = 'day' | 'month'
-
-export type WindowResponseUnits = Record<QuotaWindow, number>
-
-export type CapacityTrafficProfile = {
-  largestValidMethodBatch: number
-  sustainedMethodCallsPerSecond: number
-  peakMethodCallsPerSecond: number
-  responseUnitsPerQuotaWindow: WindowResponseUnits
-  sharedTraffic: {
-    sustainedMethodCallsPerSecond: number
-    peakMethodCallsPerSecond: number
-    responseUnitsPerQuotaWindow: WindowResponseUnits
-  }
-  retryAmplificationFactor: number
-  headroomPercent: number
-}
-
-export type MigrationConfig = {
+export type SolidRpcConfig = {
   chainId: number
-  legacyRpcUrl: string
-  solidRpcApiKey?: string
-  solidRpcApiKeyTransport?: SolidRpcApiKeyTransport
-  solidRpcCustomerAuthorization?: string
-  solidRpcCustomerAuthorizationRequired?: boolean
-  solidRpcUrl?: string
-  catalogUrl?: string
-  qualificationFile?: string
-  qualificationTtlMs?: number
-  confirmationBlocks?: bigint
-  requestTimeoutMs?: number
-  capacityTrafficProfile?: CapacityTrafficProfile
+  rpcUrl: string
+  catalogUrl: string
+  apiKey: string
+  apiKeyReference: string
+  accountAddress: Address
+  requestTimeoutMs: number
+  explicitRepositoryLimits: ExplicitRepositoryLimits
 }
 
-export type MigrationDependencies = {
-  fetch?: typeof globalThis.fetch
-  now?: () => Date
+export type ExplicitRepositoryLimits = {
+  largestBatch?: number
+  maximumRequestsPerSecond?: number
+  maximumConcurrentRequests?: number
+  maximumResponseUnitsPerWindow?: number
 }
 
-export type BalanceRead = {
-  provider: RpcProvider
+export type PlanLimits = {
+  ratePerSecond: number
+  burst: number
+  remaining: number
+  rateResetSeconds: number
+  quotaLimit: number
+  quotaWindow: 'day' | 'month'
+  quotaUsed: number
+  quotaRemaining: number
+  quotaResetSeconds: number
+}
+
+export type CatalogCoverage = {
+  chainId: number
+  name?: string
+  status: 'live'
+  methodFamilies: string[]
+  nodeTypes: string[]
+}
+
+export type PrototypeSmokeResult = {
+  status: 'qualified' | 'blocked'
+  applicationClass: 'prototype'
+  authenticated: true
+  endpoint: string
+  apiKeyReference: string
+  catalog: CatalogCoverage
+  observedChainId: number
+  observedBlockNumber: string
+  observedBalanceAtStableBlock: string
+  planLimits: PlanLimits
+  productionCapacityProven: false
+  blockers: string[]
+  advisories: string[]
+}
+
+export type ReadResult = {
+  provider: 'solidrpc'
   address: Address
   balance: bigint
 }
 
+export type StateChangingMethod =
+  | 'eth_sendRawTransaction'
+  | 'eth_sendTransaction'
+  | 'personal_sign'
+
 export type SubmittedTransaction = {
-  provider: RpcProvider
+  provider: 'solidrpc'
   transactionHash: Hash
 }
 
-export type SolidRpcProbeUsage = {
-  rpcRequests: number
-  methodCalls: number
-  responseUnits: number
+export type JsonRpcRequest = {
+  method: StateChangingMethod
+  params: readonly unknown[]
 }
 
-export type LiveCapacityQualification = {
-  status: 'qualified'
-  observedAt: string
-  expiresAt: string
-  apiKeyTransport: SolidRpcApiKeyTransport
-  limits: {
-    ratePerSecond: number
-    burst: number
-    remaining: number
-    resetSeconds: number
-    quotaLimit: number
-    quotaWindow: QuotaWindow
-    quotaUsed: number
-    quotaRemaining: number
-    quotaResetSeconds: number
-  }
-  trafficProfile: CapacityTrafficProfile
-  calculated: {
-    sustainedMethodCallsPerSecond: number
-    peakMethodCallsPerSecond: number
-    responseUnitsPerQuotaWindow: number
-    responseUnitsUntilReset: number
-    rateCapacityWithHeadroom: number
-    burstCapacityWithHeadroom: number
-    quotaCapacityWithHeadroom: number
-  }
-  probeUsage: SolidRpcProbeUsage
+export type ApplicationClass = 'prototype' | 'production' | 'unknown'
+
+export type ProductionFacts = {
+  peakRequestsPerSecond: number
+  quotaWindowUsage: number
+  largestBatch: number
+  requiredNetworks: number[]
+  methodFamilies: string[]
+  oldestRequiredBlock: bigint | 'latest-only'
+  timeoutMilliseconds: number
+  ambiguousWritePolicy: 'never-retry'
 }
 
-export type ComparableBalanceResult = {
-  status: 'match' | 'mismatch'
-  blockNumber: bigint
-  blockHash: Hash
-  address: Address
-  productionProvider: 'legacy'
-  productionResult: bigint
-  legacyResult: bigint
-  solidRpcResult: bigint
+export type ProductionEvidenceSource = {
+  source: string
+  facts: Partial<ProductionFacts>
 }
 
-export type IncomparableBalanceResult = {
-  status: 'incomparable'
-  blockNumber: bigint
-  address: Address
-  productionProvider: 'legacy'
-  reason: string
-  legacyBlockHash: Hex | null
-  solidRpcBlockHash: Hex | null
+export type RoutingDisposition = {
+  applyLocalChange: boolean
+  activeCompatibleRoute: 'current' | 'solidrpc'
+  productionStateChanged: false
 }
 
-export type BalanceComparison = ComparableBalanceResult | IncomparableBalanceResult
-
-export type CatalogCoverage = {
-  fetchedAt: string
-  chainId: number
-  name?: string
-  status: 'live'
-  nodeTypes: string[]
-  methods: string[]
-}
-
-export type QualificationEvidencePayload = {
-  schemaVersion: 2
-  kind: 'solidrpc-read-qualification'
-  mode: 'partial-read-replace'
-  configurationFingerprint: string
-  chainId: number
-  solidRpcUrl: string
-  catalogUrl: string
-  requiredMethodFamilies: ['standard']
-  requiredNodeTypes: []
-  requiredProjectChecks: {
-    routingInvariant: {
-      id: 'viem-sample-partial-read-routing-invariants-v3'
-      required: true
-      solidRpcOnlyMethods: ['eth_getBalance']
-      retainedLegacyMethods: ['eth_sendRawTransaction']
+export type QualificationDecision =
+  | {
+      status: 'qualified'
+      applicationClass: 'prototype' | 'production'
+      questions: []
+      missingFacts: []
+      discoveredFrom: string[]
+      routing: RoutingDisposition
     }
-  }
-  credentialBinding: {
-    customerJwtExpiresAt: string | null
-    safetySkewSeconds: 30
-  }
-  qualifiedAt: string
-  expiresAt: string
-  catalog: CatalogCoverage
-  capacity: LiveCapacityQualification
-  probeUsage: SolidRpcProbeUsage
-  comparison: {
-    method: 'eth_getBalance'
-    address: Address
-    blockNumber: string
-    blockHash: Hash
-    legacyResult: string
-    solidRpcResult: string
-  }
+  | {
+      status: 'needs-classification'
+      applicationClass: 'unknown'
+      questions: [string]
+      missingFacts: []
+      discoveredFrom: []
+      routing: RoutingDisposition
+    }
+  | {
+      status: 'needs-input' | 'blocked'
+      applicationClass: 'prototype' | 'production'
+      questions: [] | [string]
+      missingFacts: (keyof ProductionFacts)[]
+      discoveredFrom: string[]
+      blockers: string[]
+      routing: RoutingDisposition
+    }
+
+export type RpcDependencies = {
+  fetch?: typeof globalThis.fetch
 }
 
-export type QualificationEvidence = QualificationEvidencePayload & {
-  integrity: {
-    algorithm: 'hmac-sha256'
-    digest: string
-  }
-}
+export type RawStateChangeResult = Hex | string | boolean | null | object

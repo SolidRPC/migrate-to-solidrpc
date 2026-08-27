@@ -13,7 +13,10 @@ type JsonRpcRequest = {
 
 const openServers: Server[] = []
 
-async function startRpcServer(requests: JsonRpcRequest[]): Promise<string> {
+async function startRpcServer(
+  requests: JsonRpcRequest[],
+  options: { destroyAfterMethods?: readonly string[] } = {},
+): Promise<string> {
   const transactionHash = `0x${"ab".repeat(32)}`
   const server = createServer(async (request, response) => {
     const chunks: Buffer[] = []
@@ -24,10 +27,16 @@ async function startRpcServer(requests: JsonRpcRequest[]): Promise<string> {
     const payload = JSON.parse(Buffer.concat(chunks).toString("utf8")) as JsonRpcRequest
     requests.push(payload)
 
+    if (options.destroyAfterMethods?.includes(payload.method)) {
+      request.socket.destroy()
+      return
+    }
+
     const resultByMethod: Record<string, string> = {
       eth_blockNumber: "0x2a",
       eth_getBalance: "0xde0b6b3a7640000",
       eth_sendRawTransaction: transactionHash,
+      alchemy_getTokenBalances: "0x1",
     }
     const result = resultByMethod[payload.method]
 
@@ -75,6 +84,31 @@ describe("primary RPC integration", () => {
     await expect(rpc.submitSignedRawTransaction(signedTransaction)).resolves.toBe(`0x${"ab".repeat(32)}`)
     expect(requests).toHaveLength(1)
     expect(requests[0]).toMatchObject({ method: "eth_sendRawTransaction", params: [signedTransaction] })
+  })
+
+  it("does not retry an ambiguous signed transaction response", async () => {
+    const requests: JsonRpcRequest[] = []
+    const primaryRpcUrl = await startRpcServer(requests, {
+      destroyAfterMethods: ["eth_sendRawTransaction"],
+    })
+    const rpc = new PrimaryRpc({ primaryRpcUrl })
+    const signedTransaction = "0x02f86b0180843b9aca008252089400000000000000000000000000000000000000008080c080a0" as Hex
+
+    await expect(rpc.submitSignedRawTransaction(signedTransaction)).rejects.toBeDefined()
+    expect(requests).toHaveLength(1)
+    expect(requests[0]).toMatchObject({ method: "eth_sendRawTransaction" })
+  })
+
+  it("keeps the provider-specific API explicit", async () => {
+    const requests: JsonRpcRequest[] = []
+    const primaryRpcUrl = await startRpcServer(requests)
+    const rpc = new PrimaryRpc({ primaryRpcUrl })
+
+    await expect(
+      rpc.getProviderSpecificTokenBalances("0x0000000000000000000000000000000000000000"),
+    ).resolves.toBe("0x1")
+    expect(requests).toHaveLength(1)
+    expect(requests[0]).toMatchObject({ method: "alchemy_getTokenBalances" })
   })
 
   it("keeps WebSocket subscription configuration separate", () => {

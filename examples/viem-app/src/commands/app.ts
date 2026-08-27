@@ -1,13 +1,16 @@
+import { formatEther } from 'viem'
 import 'dotenv/config'
-import { runCommand } from '../command'
-import { loadAccountAddress, loadMigrationConfig } from '../config'
-import { stringifyResult } from '../format'
-import { createMigrationApp } from '../migrationApp'
+import { loadSolidRpcConfig } from '../config'
+import { SolidRpc } from '../solidRpc'
 
-await runCommand(async () => {
-  const config = loadMigrationConfig()
-  const app = createMigrationApp(config)
-  const result = await app.readBalance(loadAccountAddress())
-
-  process.stdout.write(`${stringifyResult(result)}\n`)
-})
+try {
+  const config = loadSolidRpcConfig()
+  const rpc = new SolidRpc(config)
+  const latestBlock = await rpc.getLatestBlockNumber()
+  const result = await rpc.getNativeBalance(config.accountAddress)
+  console.log(`SolidRPC block: ${latestBlock}`)
+  console.log(`${result.address}: ${formatEther(result.balance)} ETH`)
+} catch (error) {
+  console.error(error instanceof Error ? error.message : 'SolidRPC application failed')
+  process.exitCode = 1
+}

@@ -1,0 +1,19 @@
+{
+  "environment": "production",
+  "sustainedRequestsPerSecond": 45,
+  "peakRequestsPerSecond": 80,
+  "quotaWindow": "day",
+  "quotaWindowUsage": 250000,
+  "sharedAccountQuotaWindowUsage": 50000,
+  "retryAmplificationFactor": 1,
+  "largestBatch": 25,
+  "maximumConcurrentRequests": 40,
+  "requiredNetworks": [1],
+  "methodFamilies": ["standard"],
+  "oldestRequiredBlock": 19000000,
+  "timeoutMilliseconds": 8000,
+  "readRetries": 2,
+  "writeRetries": 0,
+  "capacityHeadroomPercent": 25,
+  "ambiguousWritePolicy": "never-retry"
+}

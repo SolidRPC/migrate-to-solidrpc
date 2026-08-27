@@ -14,7 +14,7 @@ export class PrimaryRpc {
   private readonly walletClient
 
   constructor(config: PrimaryHttpConfig) {
-    const transport = http(config.primaryRpcUrl)
+    const transport = http(config.primaryRpcUrl, { retryCount: 0 })
     this.publicClient = createPublicClient({ chain: mainnet, transport })
     this.walletClient = createWalletClient({ chain: mainnet, transport })
   }
@@ -29,6 +29,13 @@ export class PrimaryRpc {
 
   submitSignedRawTransaction(serializedTransaction: Hex): Promise<Hex> {
     return this.walletClient.sendRawTransaction({ serializedTransaction })
+  }
+
+  getProviderSpecificTokenBalances(address: Address): Promise<unknown> {
+    const request = this.publicClient.request.bind(this.publicClient) as unknown as (
+      input: { method: string; params: readonly unknown[] },
+    ) => Promise<unknown>
+    return request({ method: "alchemy_getTokenBalances", params: [address] })
   }
 }
 

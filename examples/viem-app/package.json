@@ -1,13 +1,12 @@
 {
   "name": "solidrpc-viem-migration-example",
-  "version": "1.0.0",
+  "version": "0.1.3",
   "private": true,
   "type": "module",
   "scripts": {
     "app": "tsx src/commands/app.ts",
-    "rpc:compare": "tsx src/commands/compare.ts",
-    "rpc:qualify": "tsx src/commands/qualify.ts",
-    "app:solidrpc": "tsx src/commands/replacement.ts",
+    "rpc:smoke": "tsx src/commands/smoke.ts",
+    "build": "tsc --noEmit false --outDir dist",
     "test": "tsx --test tests/**/*.test.ts",
     "typecheck": "tsc --noEmit"
   },

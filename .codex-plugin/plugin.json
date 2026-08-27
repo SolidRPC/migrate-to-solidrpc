@@ -1,7 +1,7 @@
 {
   "name": "migrate-to-solidrpc",
-  "version": "0.1.2",
-  "description": "Move an EVM application from one or more RPC providers to one SolidRPC integration with a safe comparison before cutover",
+  "version": "0.1.3",
+  "description": "Replace compatible EVM RPC traffic with one SolidRPC integration through a guided, tested repository change.",
   "author": {
     "name": "SolidRPC",
     "url": "https://solidrpc.io"
@@ -19,8 +19,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Migrate to SolidRPC",
-    "shortDescription": "Move an EVM app to one SolidRPC integration",
-    "longDescription": "Audit the application's RPC usage, compare supported reads with SolidRPC, and move portable HTTPS JSON-RPC traffic to one SolidRPC integration without duplicating transactions or breaking provider-specific routes.",
+    "shortDescription": "Replace EVM RPC with one SolidRPC integration",
+    "longDescription": "Inspect the repository, replace compatible HTTPS JSON-RPC traffic with one SolidRPC integration, run the project's checks, and present the direct diff and Git rollback steps. Incompatible WebSocket, subscription, webhook, browser-credential, and provider-specific paths remain explicit.",
     "developerName": "SolidRPC",
     "category": "Development",
     "capabilities": [
@@ -32,8 +32,7 @@
     "logo": "./assets/solidrpc-mark-dark.png",
     "logoDark": "./assets/solidrpc-mark-dark.png",
     "defaultPrompt": [
-      "Add SolidRPC for manual read-only comparison without changing production routing.",
-      "Qualify and replace this application's portable HTTPS JSON-RPC provider with SolidRPC."
+      "Migrate compatible HTTPS JSON-RPC to SolidRPC. Make the local change, run checks, and show the diff and Git rollback steps."
     ]
   }
 }

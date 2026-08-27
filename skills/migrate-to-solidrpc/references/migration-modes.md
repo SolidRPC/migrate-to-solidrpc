@@ -1,145 +1,116 @@
-# Migration modes and qualification gates
+# Migration workflow and qualification gates
 
-## Mode semantics
+The normal migration has one outcome: SolidRPC is the only active provider for compatible
+HTTPS JSON-RPC after qualification. There is no add/replace choice and no customer-managed
+fallback pool.
 
-| Mode | Active portable HTTPS route | SolidRPC comparison | Legacy provider |
-| --- | --- | --- | --- |
-| Add (default) | Existing provider only | Manual, read-only, non-production command | Unchanged |
-| Replace | SolidRPC only | Normal validation/tests; no production fanout | Inactive rollback configuration |
-| Partial replace | SolidRPC for qualified portable HTTPS calls | Normal validation/tests | Active only for named incompatible features |
-| Blocked replace | Existing provider only | Optional preparatory/manual validation | Remains active until gates pass |
+## Classify the application
 
-Words such as “migrate,” “integrate,” “try,” or “add” do not authorize replacement. Use
-replace mode only for an explicit request to replace, cut over, make primary, or make
-SolidRPC the only provider.
+Infer production status before asking. Production signals include deployed environments,
+real domains, production manifests, alerting, SLOs, usage dashboards, billing controls,
+customer traffic, and an explicit live-service statement. Prototype signals include an
+example, tutorial, local-only app, test fixture, hackathon project, or explicit statement
+that it has no production traffic.
 
-Do not implement SolidRPC as one member of a customer-managed production fallback pool.
-In add mode it is a manual evaluation path, not a fallback. In replace mode it owns the
-qualified route without a legacy HTTPS fallback.
+If the evidence conflicts or remains unclear, ask one concise question: “Does this
+application currently serve production traffic?” Do not combine that classification
+question with a mode choice.
 
-## Replacement gates
+## Prototype fast path
 
-All applicable gates must pass before changing the active route:
+A prototype does not need measured peaks, historical usage, or production telemetry. All
+of these applicable gates must pass:
 
-1. **Inventory:** every construction site, chain, method, transport, environment boundary,
-   write path, history need, and provider-specific dependency is classified.
-2. **Catalogue:** the live catalogue was fetched during this run and verifies each required
-   chain, node type, and advertised method family.
-3. **Credential:** the intended runtime injects the configured key without exposing it, and
-   an authenticated request succeeds. Durable evidence is bound to a non-reversible fingerprint
-   of the intended key and delegated credential scope so rotation invalidates it. Key absence
-   blocks cutover but not preparatory wiring.
-4. **Capacity:** authenticated response headers establish the lowest effective account, key, and
-   delegated-JWT rate, burst, and quota constraints. Measured aggregate production demand,
-   batch-expanded sustained and peak method rate, largest valid-method batch, retry amplification,
-   projected response units in the actual quota window, remaining capacity, and deliberate
-   headroom all fit. Any required overage or upgrade is explicitly approved and verified.
-5. **Representative behavior:** business-critical standard, trace/debug, batch, and oldest
-   historical reads pass against SolidRPC at stable references.
-6. **Writes:** the intended production credential and account policy are verified for every write
-   method being cut over, and tests prove each transaction is submitted exactly once with no
-   cross-provider retry, fanout, or comparison. A read-only probe cannot satisfy this gate.
-7. **Boundaries:** WebSockets, subscriptions, webhooks, browser-held credentials, and
-   proprietary APIs are either deliberately retained on the legacy provider or resolved.
-8. **Project checks:** relevant unit/integration tests, type checks, lint/build checks, and
-   secret/tracked-file review pass.
+1. The intended trusted runtime has authenticated SolidRPC access through a named secret
+   reference without exposing the value.
+2. The live catalogue supports every required network, method family, and node type.
+3. Minimal read-only smoke tests at stable references pass for representative methods and
+   history shapes.
+4. Relevant project tests, type checks, lint, and build checks pass.
+5. No explicit repository configuration—such as batch size, concurrency, polling rate, or
+   request budget—exceeds the current account's available plan limits.
 
-When a gate fails, leave the existing active route untouched. Record the failed evidence,
-safe work completed, and the exact remaining action. Do not add a runtime flag that can
-accidentally activate an unqualified route merely by setting an environment variable.
+Show the applicable non-secret plan limits and their source. State that production capacity
+has not yet been proven. That statement is advisory and does not block prototype migration
+unless explicit repository configuration clearly exceeds an available limit. Unknown future
+traffic is not evidence that the prototype exceeds a limit.
 
-## Durable qualification evidence
+When the gates pass, directly replace the compatible HTTP route locally and test that the
+legacy provider receives zero compatible requests.
 
-Prefer a direct source or deployment-config cutover performed after the gates pass. When a
-sample, template, or operational workflow must retain runtime-selectable legacy and SolidRPC
-routes, SolidRPC activation must require a generated qualification artifact in addition to the
-credential. Never treat a provider-name environment variable, boolean, or credential presence as
-qualification.
+## Production qualification
 
-Generate the artifact only from an explicit qualification command after catalogue validation and
-authenticated representative reads succeed. Keep it non-secret and environment-specific. Record
-at least:
+Before asking the user, search existing monitoring queries and dashboards, configuration,
+logs, infrastructure manifests, load tests, provider metrics, billing data, and deployment
+settings. Derive what can be supported and cite the local source or non-secret observation.
 
-- a schema version, requested mode, chain ID, and clean SolidRPC endpoint;
-- a non-secret binding to the intended API key and delegated JWT credential set, never the
-  credential values;
-- authenticated integrity over the complete canonical payload, such as HMAC-SHA256 keyed by the
-  intended API key; a plain fingerprint alone is insufficient;
-- catalogue endpoint, fetch time, status, required method families, and required node types;
-- the stable block number/hash and the representative read shapes that passed;
-- authenticated `X-RateLimit-*` and `X-Quota-*` limit, remaining, and reset snapshots with
-  observation times, but no credential or complete raw headers;
-- the largest valid-method batch, batch-expanded sustained and peak method calls per second,
-  projected response units per actual quota window, shared account/key/JWT traffic, retry
-  amplification, selected headroom, and the resulting capacity decision;
-- any required overage or upgrade approval and how its availability was verified;
-- the actual number of valid qualification probe method calls and their capacity effect;
-- qualification and expiry times, capped before any delegated JWT `exp` with a documented
-  clock-skew margin; and
-- booleans or identifiers for the deterministic project checks that were required.
+Qualify the facts applicable to the observed application:
 
-Do not include an API key, credential-bearing URL, raw environment output, or signed transaction.
-Ignore local evidence files by default or store them in the deployment control plane. At startup,
-validate artifact integrity with the current credential, then its schema, chain, endpoint, mode,
-credential binding, and expiry before constructing a SolidRPC
-production client. Missing, malformed, expired, or mismatched evidence must fail before any
-SolidRPC or legacy request. Creating evidence must never itself change production routing.
+- peak and sustained method calls per second after expanding batches;
+- quota-window usage, aggregate shared-account traffic, and retry amplification;
+- largest valid-method batch and request concurrency;
+- required networks, method families, and oldest historical depth;
+- timeout, retry, and ambiguous-write behavior;
+- effective rate, burst, batch, quota, and quota-window limits for the intended account;
+- representative read behavior and, where applicable, write authorization and exactly-once
+  behavior; and
+- deliberate capacity headroom.
 
-Tests for a selectable sample must cover missing, malformed, edited, expired, wrong-chain,
-wrong-endpoint, credential rotation, delegated-JWT expiry, and valid evidence. The valid case must
-prove the legacy HTTPS route receives zero requests for every route represented as replaced by the
-artifact. Any retained route must be named in the artifact and test assertions.
+If facts remain missing after discovery, ask **one** question containing the complete list,
+for example: “To qualify the production cutover, I still need [all missing facts]. Where can
+I find those measurements or configurations?” Ask for a credential reference name when
+needed, never a credential value. Do not interrupt later with separate follow-up questions;
+collect any newly discovered missing facts into the same unresolved list.
 
-## Add-mode comparison behavior
+Production cutover is qualified only when current catalogue, authenticated behavior,
+project checks, request safety, and applicable demand-versus-capacity gates pass. Do not
+invent a requirement that the repository does not use, but do not waive an observed one.
 
-The comparison entrypoint must be explicit, such as a developer CLI command or isolated
-diagnostic test. It must not be imported by the production provider module, invoked on a
-timer, called from a user request, or registered as fallback transport.
+## Direct migration change
 
-Tests should make provider routing observable with deterministic request counters:
+For qualified compatible traffic:
 
-- an ordinary application read reaches only the existing provider;
-- manual comparison reaches each provider only for allowlisted reads;
-- a mismatch is reported but the existing provider remains authoritative;
-- transaction submission reaches the existing provider once and SolidRPC zero times;
-- absent credentials or catalogue failures make comparison fail clearly without affecting
-  normal application behavior.
+- replace the current HTTPS transport with one SolidRPC transport;
+- remove legacy HTTP construction from the active route rather than preserving a switch;
+- remove customer-side fallback, quorum, race, or automatic failover behavior;
+- keep retries only when the same-endpoint behavior is safe for the classified method;
+- use explicit call sites for incompatible WebSockets, subscriptions, webhooks,
+  browser-held credentials, and proprietary APIs; and
+- make every eligible state-changing call exactly once.
 
-## Replace-mode behavior
+Do not create a persistent migration report unless the user explicitly requests one, and
+keep any requested report secret-free. Do not create a qualification artifact, HMAC,
+startup gate, or runtime selector. The review evidence is the local diff, check results,
+and concise final summary. The rollback is Git reversal of the migration diff followed by
+the project's normal deployment process.
 
-For qualified portable HTTPS JSON-RPC, tests should prove the existing provider receives
-zero requests and SolidRPC receives the expected request exactly once. This includes writes only
-after their credential scope and account policy are separately qualified. Retain rollback
-configuration without registering it as an automatic fallback.
+## Blocked production cutover
 
-If legacy-only behavior remains, isolate it by explicit capability or call site. Do not
-route ordinary SolidRPC failures to the legacy provider. Name each retained feature in the
-migration record so “partial” cannot be mistaken for full replacement.
+If a required production gate cannot be verified, keep external and production state
+unchanged. When useful, prepare the direct local cutover diff so the user can review it, but
+mark it **not deployment-ready** and do not commit, push, or deploy it. Do not add a runtime
+selector as a substitute for qualification and do not claim completion.
 
-## Required `SOLIDRPC_MIGRATION.md`
+Return one concise, secret-free list containing:
 
-Create or update one file at the project root with these sections:
+- the failed or missing gates;
+- any local review-only change and checks that were completed;
+- each incompatible boundary that remains; and
+- the exact evidence or decision still needed before the user's normal deployment.
 
-1. **Summary:** UTC date, requested mode, effective mode, and one-sentence result.
-2. **Inventory:** component/call site, client library, runtime boundary, chain ID,
-   transport, methods, writes, history requirement, current provider, and tests.
-3. **Coverage evidence:** catalogue endpoint and fetch time, required versus advertised
-   chain/family/node coverage, authenticated probes, and gaps. Record credential state only
-   as configured/missing/untested. If durable qualification evidence controls activation,
-   record its non-secret schema/version, expiry, and storage location.
-4. **Capacity evidence:** observed effective non-secret limit, remaining, and reset headers;
-   measured aggregate production demand and batch expansion; actual quota window and projected
-   units; retry amplification; headroom; probe method-call count; required overage or upgrade
-   approval; and pass/block outcome. Do not use public plan defaults as evidence.
-5. **Routing after this change:** a table mapping portable reads, writes, manual comparison,
-   WebSockets/subscriptions, and proprietary features to their active provider. State
-   explicitly whether SolidRPC receives production traffic.
-6. **Changes and validation:** files/behavior changed and exact checks with outcomes. Clearly
-   distinguish deterministic mocks, authenticated checks, and optional public smoke tests.
-7. **Rollback:** the concrete configuration/code reversal needed to restore the previous
-   active route, without a secret value or credential-bearing URL.
-8. **Gaps and remaining actions:** incompatible features, blocked gates, owners if known,
-   and required cutover steps.
+## Deterministic assertions
 
-Merge with an existing migration record rather than discarding useful prior evidence.
-Never place credentials, raw secret-manager output, or full URL-auth endpoints in the file.
+Adapt the project's tests so routing is observable with local mock servers on ephemeral
+ports where practical. Cover compatible reads and writes reaching SolidRPC only, writes
+counted exactly once, zero compatible requests to the legacy HTTP route, and explicit
+WebSocket or proprietary boundaries that cannot catch ordinary SolidRPC errors. Check
+commands and application errors for secret-free output.
+
+Verify agent-workflow behavior through repository inspection, the resulting diff, and the
+final response rather than adding meta-tests to an ordinary application: a telemetry-free
+prototype is not blocked, production telemetry is discovered before one consolidated
+question, blocked production stays unchanged, and no normal-flow HMAC, evidence file,
+runtime migration file, or `SOLIDRPC_MIGRATION.md` is created.
+
+Mocks prove routing invariants, not live service capacity. Label live authenticated smoke
+tests separately from deterministic project checks.

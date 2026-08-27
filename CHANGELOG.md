@@ -2,6 +2,37 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.3] - 2026-08-27
+
+### Added
+
+- A prototype fast path that qualifies authenticated catalog and method coverage, safe read-only
+  smoke tests, project checks, and configured plan fit without requiring production telemetry.
+- Production discovery that reads monitoring, configuration, logs, and infrastructure first, then
+  asks one consolidated question only when required traffic or timeout facts remain unknown.
+- Deterministic coverage for prototype and production qualification, consolidated questions,
+  SolidRPC-only compatible routing, exactly-once state changes, explicit incompatible boundaries,
+  secret-free output, blocked production cutover, and advanced-evidence rollback safety.
+
+### Changed
+
+- An explicit migrate, switch, or replace request now starts one guided replacement flow: inspect
+  the repository, directly migrate compatible HTTPS JSON-RPC traffic to one SolidRPC integration,
+  run project checks, and present the diff and Git rollback instructions.
+- The normal flow no longer asks users to choose Add or Replace mode. It does not create a
+  customer-managed fallback pool, shadow production traffic, retain a runtime provider selector,
+  or deploy the change automatically.
+- Prototype plan limits are advisory unless repository configuration clearly exceeds them;
+  production cutover remains blocked when required capacity, coverage, or timeout gates cannot be
+  verified, while useful local changes may still be prepared for review.
+- Git rollback is now the default recovery path. Persistent migration reports, HMAC evidence,
+  evidence expiry, and startup gates were removed from the default workflow and remain relevant
+  only to an explicitly requested advanced runtime-selectable dual route.
+- WebSockets, subscriptions, webhooks, browser-held credentials, and provider-specific APIs are
+  reported as separate remaining decisions rather than silently routed through provider fallback.
+- Codex and Claude Code manifests, marketplace metadata, examples, fixtures, documentation, and
+  release references now target v0.1.3.
+
 ## [0.1.2] - 2026-08-27
 
 ### Changed
@@ -56,3 +87,4 @@ All notable changes to this project are documented in this file.
 [0.1.0]: https://github.com/SolidRPC/migrate-to-solidrpc/releases/tag/v0.1.0
 [0.1.1]: https://github.com/SolidRPC/migrate-to-solidrpc/releases/tag/v0.1.1
 [0.1.2]: https://github.com/SolidRPC/migrate-to-solidrpc/releases/tag/v0.1.2
+[0.1.3]: https://github.com/SolidRPC/migrate-to-solidrpc/releases/tag/v0.1.3

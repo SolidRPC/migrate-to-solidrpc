@@ -1,78 +1,33 @@
-import { catalogUrl } from './config'
-import type {
-  CatalogCoverage,
-  MigrationConfig,
-  MigrationDependencies,
-} from './types'
+import type { CatalogCoverage, RpcDependencies, SolidRpcConfig } from './types'
 
-export class CatalogQualificationError extends Error {
-  override readonly name: string = 'CatalogQualificationError'
+export class CatalogError extends Error {
+  override readonly name = 'CatalogError'
 }
 
-type CatalogNetwork = {
-  chainId: number
-  name?: string
-  status: string
-  nodeTypes: string[]
-  methods: string[]
-}
-
-function stringArray(value: unknown): value is string[] {
+function strings(value: unknown): string[] | null {
   return Array.isArray(value) && value.every((item) => typeof item === 'string')
+    ? value
+    : null
 }
 
-function parseNetwork(value: unknown, chainId: number): CatalogNetwork {
-  if (typeof value !== 'object' || value === null) {
-    throw new CatalogQualificationError(
-      `SolidRPC catalog entry for chain ${chainId} is malformed`,
-    )
-  }
-
-  const record = value as Record<string, unknown>
-  if (
-    record.chainId !== chainId ||
-    typeof record.status !== 'string' ||
-    !stringArray(record.nodeTypes) ||
-    !stringArray(record.methods) ||
-    (record.name !== undefined && typeof record.name !== 'string')
-  ) {
-    throw new CatalogQualificationError(
-      `SolidRPC catalog entry for chain ${chainId} is malformed`,
-    )
-  }
-
-  return {
-    chainId,
-    ...(record.name === undefined ? {} : { name: record.name }),
-    status: record.status,
-    nodeTypes: [...record.nodeTypes],
-    methods: [...record.methods],
-  }
-}
-
-export async function qualifyCatalogCoverage(
-  config: MigrationConfig,
-  dependencies: MigrationDependencies = {},
+export async function requireLiveCatalogCoverage(
+  config: SolidRpcConfig,
+  requiredMethodFamilies: readonly string[],
+  dependencies: RpcDependencies = {},
 ): Promise<CatalogCoverage> {
   const fetchImpl = dependencies.fetch ?? globalThis.fetch
-  const url = catalogUrl(config)
   let response: Response
-
   try {
-    response = await fetchImpl(url, {
+    response = await fetchImpl(config.catalogUrl, {
       headers: { accept: 'application/json' },
-      signal: AbortSignal.timeout(config.requestTimeoutMs ?? 10_000),
+      signal: AbortSignal.timeout(config.requestTimeoutMs),
     })
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error)
-    throw new CatalogQualificationError(
-      `SolidRPC catalog is unavailable: ${detail}`,
-    )
+  } catch {
+    throw new CatalogError('The live SolidRPC network catalog is unavailable')
   }
-
   if (!response.ok) {
-    throw new CatalogQualificationError(
-      `SolidRPC catalog is unavailable: HTTP ${response.status}`,
+    throw new CatalogError(
+      `The live SolidRPC network catalog returned HTTP ${response.status}`,
     )
   }
 
@@ -80,43 +35,42 @@ export async function qualifyCatalogCoverage(
   try {
     payload = await response.json()
   } catch {
-    throw new CatalogQualificationError('SolidRPC catalog response is malformed JSON')
+    throw new CatalogError('The live SolidRPC network catalog returned malformed JSON')
   }
-
   if (!Array.isArray(payload)) {
-    throw new CatalogQualificationError('SolidRPC catalog response must be a JSON array')
+    throw new CatalogError('The live SolidRPC network catalog must be an array')
   }
 
-  const entry = payload.find(
-    (candidate) =>
-      typeof candidate === 'object' &&
-      candidate !== null &&
-      (candidate as Record<string, unknown>).chainId === config.chainId,
+  const candidate = payload.find(
+    (entry) =>
+      typeof entry === 'object' &&
+      entry !== null &&
+      (entry as Record<string, unknown>).chainId === config.chainId,
+  ) as Record<string, unknown> | undefined
+  if (!candidate) {
+    throw new CatalogError(`Chain ${config.chainId} is not listed in the live catalog`)
+  }
+
+  const methodFamilies = strings(candidate.methods)
+  const nodeTypes = strings(candidate.nodeTypes)
+  if (candidate.status !== 'live' || !methodFamilies || !nodeTypes) {
+    throw new CatalogError(`Chain ${config.chainId} is not live with valid coverage metadata`)
+  }
+
+  const missing = requiredMethodFamilies.filter(
+    (family) => !methodFamilies.includes(family),
   )
-  if (entry === undefined) {
-    throw new CatalogQualificationError(
-      `SolidRPC catalog does not list chain ${config.chainId}`,
-    )
-  }
-
-  const network = parseNetwork(entry, config.chainId)
-  if (network.status !== 'live') {
-    throw new CatalogQualificationError(
-      `SolidRPC chain ${config.chainId} is not live (status: ${network.status})`,
-    )
-  }
-  if (!network.methods.includes('standard')) {
-    throw new CatalogQualificationError(
-      `SolidRPC chain ${config.chainId} does not advertise the standard method family`,
+  if (missing.length > 0) {
+    throw new CatalogError(
+      `Chain ${config.chainId} does not support required method families: ${missing.join(', ')}`,
     )
   }
 
   return {
-    fetchedAt: (dependencies.now ?? (() => new Date()))().toISOString(),
-    chainId: network.chainId,
-    ...(network.name === undefined ? {} : { name: network.name }),
+    chainId: config.chainId,
+    ...(typeof candidate.name === 'string' ? { name: candidate.name } : {}),
     status: 'live',
-    nodeTypes: network.nodeTypes,
-    methods: network.methods,
+    methodFamilies: [...methodFamilies],
+    nodeTypes: [...nodeTypes],
   }
 }

@@ -1,109 +1,84 @@
 ---
 name: migrate-to-solidrpc
-description: Safely add SolidRPC to an EVM application or explicitly replace its current RPC provider. Use when integrating, evaluating, migrating, or cutting an application over to SolidRPC; default to a manual comparison path that leaves production routing unchanged.
+description: Migrate an EVM application's compatible HTTPS JSON-RPC traffic from its current provider to one SolidRPC integration. Use when the user asks to migrate, switch, replace, or cut over an RPC provider to SolidRPC.
 license: MIT
 ---
 
 # Migrate to SolidRPC
 
-Migrate the application's RPC integration without turning provider diversity back into the
-user's operational burden. Preserve the current client library and make routing behavior
-observable and reversible.
+Turn one migration request into a reviewed local change. For compatible HTTPS JSON-RPC,
+the result is one SolidRPC integration: SolidRPC owns upstream diversity, routing,
+failover, monitoring, and recovery.
 
-## Start with evidence
+Do not ask the user to choose between add and replace modes. An explicit request to
+**migrate**, **switch**, **replace**, or **cut over** means replacement intent.
 
-Before editing, inspect the project and record:
+## Normal workflow
 
-- every provider/client construction site and chain ID;
-- read methods, write or signing methods, historical/archive depth, batches, and timeouts;
-- HTTP, WebSocket, `eth_subscribe`, webhook, and provider-specific features;
-- server/browser boundaries, environment-variable names, secret injection, and tests;
-- fallback, retry, load-balancing, health-check, and failover behavior;
-- the largest valid-method batch, sustained and peak RPC method calls per second after
-  expanding batches, and projected response units in the actual quota window; and
-- aggregate traffic sharing the account, key, or delegated JWT, including retry
-  amplification and the lowest applicable limits.
+1. Inspect provider construction, chains, methods, writes, batches, historical depth,
+   timeouts, transports, runtime boundaries, secrets, monitoring, infrastructure, and
+   existing checks. Do not stop at an inventory when migration was requested.
+2. Determine whether the application serves production traffic. Infer this from the
+   repository and request when clear. If it remains unclear, ask only: “Does this
+   application currently serve production traffic?”
+3. Read [the integration contract](references/integration-contract.md), fetch the live
+   network catalogue, and validate required coverage. Read
+   [client adaptation](references/client-adaptation.md) before editing provider or
+   authentication construction.
+4. Qualify the applicable prototype or production path in
+   [migration workflow and gates](references/migration-modes.md). Discover evidence
+   before asking for it; if production inputs are still missing, ask one consolidated
+   question containing every missing item.
+5. Make the direct local code or configuration change, preserving the installed client
+   library and the project's secret mechanism. Run relevant tests, type checks, lint, and
+   build checks, plus focused deterministic routing tests.
+6. Show the resulting Git diff and a Git-based rollback followed by the project's normal
+   deployment process. Do not commit, push, deploy, or modify external or production state
+   unless the user separately asks.
 
-Do not read secret-bearing environment files or print secret values. Use file names,
-examples, schemas, and code references to inventory configuration.
+If a required production gate cannot be verified, a local cutover diff may still be
+prepared for review when useful, but label it **not deployment-ready** and leave external
+and production state unchanged. Never claim that a blocked migration is complete.
 
-Read [the integration contract](references/integration-contract.md) before qualifying
-coverage. Read [migration modes and gates](references/migration-modes.md) before changing
-routing. Read [client adaptation](references/client-adaptation.md) when modifying provider
-construction or authentication.
+## Routing and request safety
 
-## Choose the mode
+- Make SolidRPC the sole active provider for qualified, compatible HTTPS JSON-RPC. Remove
+  the legacy provider from that runtime route; do not create a provider selector, fallback
+  pool, catch-all failover, or automatic rollback path. Git is the default rollback.
+- Never shadow production traffic. Never fan out, hedge, compare, or retry a transaction,
+  signing request, state-changing call, or unknown method across providers. Send an
+  eligible write exactly once through its single qualified route.
+- Keep WebSockets, subscriptions, webhooks, browser-held credentials, and proprietary APIs
+  as explicit named boundaries when incompatible. They are separate remaining decisions,
+  not a fallback for ordinary SolidRPC failures.
+- Do not expose an API key to a browser. Never read, print, persist, or commit secret
+  values. Ask only for the environment-variable or secret-reference **name**, and wire the
+  project's existing secret mechanism.
+- Do not create `SOLIDRPC_MIGRATION.md` or another persistent report unless the user asks
+  for one; any requested report must be secret-free. Do not create signed evidence, HMAC
+  artifacts, evidence-expiry checks, startup gates, or runtime route switches in the normal
+  workflow.
 
-Use **add mode** unless the user explicitly asks to replace, cut over, or make SolidRPC the
-primary/only provider.
+Only if the user explicitly requests a runtime-selectable dual route, read
+[advanced dual-route qualification](references/advanced-dual-route.md). That separate,
+opt-in workflow must fail closed for the SolidRPC candidate without ever disabling the
+existing rollback route or causing a total RPC outage.
 
-- **Add mode:** leave every production request on the existing route. Add SolidRPC
-  configuration and a separately invoked, read-only comparison command or diagnostic.
-  Never add automatic fallback, request fanout, background mirroring, or production-path
-  shadow traffic.
-- **Replace mode:** after all qualification gates pass, make SolidRPC the sole active route
-  for portable HTTPS JSON-RPC. Retain the legacy configuration inactive for rollback. A
-  legacy provider may remain active only for an inventoried incompatible feature such as
-  WebSocket subscriptions or a proprietary API; label this as a partial migration.
+## Verification and completion
 
-Prefer an explicit code or deployment-config cutover after qualification. If a reusable sample
-or operational workflow must keep both routes selectable, require generated, durable
-qualification evidence before SolidRPC can become active; a provider-name environment variable
-or other bare switch is never sufficient.
+Add target-project tests for observable runtime behavior: SolidRPC-only compatible
+routing, exactly-once writes, no production shadowing or legacy HTTP fallback, explicit
+incompatible boundaries, and secret-free output. Do not add application tests for the
+agent's own questioning or classification unless the repository already tests migration
+orchestration.
 
-If replace mode was requested but a gate fails, prepare safe wiring only, keep the existing
-production route active, and report the cutover as blocked. Do not quietly downgrade the
-requested mode or claim completion.
+Verify the workflow itself through inspection, check results, and the Git diff: a prototype
+must not be blocked by missing historical telemetry; production evidence must be discovered
+before one consolidated question; a blocked cutover must leave production unchanged; and
+the normal flow must create no migration or signed-evidence artifact.
 
-## Implement safely
-
-Fetch `https://api.solidrpc.io/networks` during this migration. Never use a remembered or
-hardcoded network list. Treat a failed, malformed, or insufficient current-run catalogue check
-as unverified coverage. Treat expired durable evidence as unqualified.
-
-Preserve the application's current client library and public interfaces. Prefer
-`https://rpc.solidrpc.io/evm/{chainId}` with `X-API-Key` on trusted server-side clients.
-Use an API key as `Authorization: Bearer` only on a trusted client that can set that header but
-cannot set `X-API-Key`, and only when `Authorization` is not already needed and no customer JWT
-is required. Use URL authentication last, only when a trusted-runtime client accepts an RPC URL
-but cannot set headers. Configure exactly one API-key transport. Never ask the user to paste a
-key into chat, source, commands, logs, or reports; wire the existing secret mechanism, defaulting
-to `SOLIDRPC_API_KEY` only when the project has no convention.
-
-Before replacement, qualify capacity from authenticated response headers and measured
-application demand. Never hardcode public plan values. Require deliberate headroom and block
-cutover when the effective rate, burst, or quota is insufficient unless an upgrade or overage
-path is explicitly approved and verified. Record qualification probe usage as part of the
-capacity evidence.
-
-Qualify authentication scope as well as capacity. Read-only probes cannot authorize a write
-cutover. Move a transaction path only when the intended production credential and account policy
-are verified for that method and exactly-once tests pass. Otherwise retain that named write route,
-label the result partial, and never use it as fallback for a SolidRPC read.
-
-If durable evidence controls activation, protect the complete payload against edits with an
-authenticated integrity mechanism such as HMAC keyed by the intended API key; a plain credential
-fingerprint is only a binding, not integrity protection. Invalidate evidence on credential
-rotation. When a delegated JWT is required, validate its expiry and end qualification before
-`exp` with a documented safety margin.
-
-In add mode, compare only explicitly classified read-only calls and only after manual
-invocation. Resolve moving tags to a stable block number or hash first. Never replay,
-mirror, retry across providers, or otherwise duplicate a transaction, signing request, or
-unknown method. The existing provider's result remains the application's result.
-
-Adapt tests to prove the selected routing behavior. Use mocks for deterministic request
-counts and failures; do not mistake mocks or a public/keyless smoke test for production
-qualification.
-
-## Leave a durable record
-
-Create or update `SOLIDRPC_MIGRATION.md` at the target project root using the required
-structure in [migration modes and gates](references/migration-modes.md). Include inventory,
-requested and effective mode, catalogue and capacity evidence, coverage gaps, route ownership,
-validation, rollback, and remaining actions. Never include credentials or full
-credential-bearing URLs.
-
-Conclude with what changed, what traffic is active on each provider, tests run, and any
-blocked or incompatible behavior. In add mode, explicitly state that SolidRPC receives no
-production traffic.
+When checks pass, finish the local migration and give a concise, secret-free summary of
+what changed, what was tested, current incompatible boundaries, whether production capacity
+was proven, and how to roll back with Git and the normal deployment process. When a required
+check fails, leave external and production state unchanged and return one concise list of
+what is still needed.

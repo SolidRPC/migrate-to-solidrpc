@@ -25,8 +25,21 @@ free of secrets.
 
 ## Security expectations
 
-The skill is designed to avoid printing or committing credentials, duplicate transaction
-submission, automatic cross-provider fallback, and unqualified provider cutover. A target
-application can still have project-specific signing, retry, browser, WebSocket, or proprietary API
-behavior. Review the generated `SOLIDRPC_MIGRATION.md` and application diff before deployment, and
-run representative tests using the target project's normal secret-management process.
+The skill makes a local repository change and does not deploy it. Review the resulting code or
+configuration diff and successful project checks before using the project's normal deployment
+process. The default recovery path is a Git rollback followed by that same deployment process.
+
+Never give the agent a secret value. Provide only the environment-variable name or secret-manager
+reference, and keep credentials in the target project's existing secret mechanism. Safe
+qualification uses authenticated, read-only requests; it must not shadow production traffic or
+duplicate transactions or other state-changing calls.
+
+Compatible HTTPS JSON-RPC traffic should have one active SolidRPC integration after migration, not
+a customer-managed provider fallback pool. WebSockets, subscriptions, webhooks, browser-held
+credentials, and provider-specific APIs remain explicit boundaries when they are incompatible.
+The default workflow does not require a persistent migration report, signed qualification
+evidence, an evidence-expiry check, or a runtime startup gate.
+
+A runtime-selectable dual route is an advanced, explicit opt-in. Evidence validation may prevent
+the SolidRPC candidate route from being enabled, but missing, expired, edited, or invalid evidence
+must leave the existing rollback route available and must never cause a total RPC outage.

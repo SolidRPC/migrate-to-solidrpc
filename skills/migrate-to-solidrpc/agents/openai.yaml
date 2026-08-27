@@ -1,6 +1,6 @@
 interface:
   display_name: "Migrate to SolidRPC"
-  short_description: "Move an EVM app to one SolidRPC integration"
-  default_prompt: "Use $migrate-to-solidrpc to add SolidRPC to this EVM application while preserving its current production RPC route."
+  short_description: "Replace an EVM RPC provider with SolidRPC"
+  default_prompt: "Use $migrate-to-solidrpc to migrate this application's compatible RPC traffic to SolidRPC, test the local change, and show me the rollback."
 policy:
   allow_implicit_invocation: true

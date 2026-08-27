@@ -1,8 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin.json",
   "name": "migrate-to-solidrpc",
-  "version": "0.1.2",
-  "description": "Move an EVM application from one or more RPC providers to one SolidRPC integration with a safe comparison before cutover",
+  "version": "0.1.3",
+  "description": "Replace compatible EVM RPC traffic with one SolidRPC integration through a guided, tested repository change.",
   "author": {
     "name": "SolidRPC",
     "url": "https://solidrpc.io"
